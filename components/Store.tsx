@@ -113,7 +113,7 @@ export function StoreProvider({children}:{children:React.ReactNode}){
 
   setSettings:p=>{setS(x=>({...x,settings:{...x.settings,...p}}));run(async()=>{const map:Record<string,any>={botEnabled:"bot_enabled",aiAutoReply:"ai_auto_reply",humanTakeover:"human_takeover_enabled",ownerApproval:"owner_approval_required",delayMin:"reply_delay_min_seconds",delayMax:"reply_delay_max_seconds",maxFollowups:"max_followups",workingStart:"working_hours_start",workingEnd:"working_hours_end"};for(const [k,v] of Object.entries(p)){await supabase.from("bot_settings").upsert({key:map[k],value:v},{onConflict:"key"})}await refresh()})},
   exportData:()=>JSON.stringify({...s,loading:undefined,error:undefined},null,2),
-  signOut:async()=>{await supabase.auth.signOut();location.reload()}
+  signOut:async()=>{const token=localStorage.getItem("mycontrol_session");if(token){await supabase.rpc("logout_mycontrol",{p_token:token})}localStorage.removeItem("mycontrol_session");location.reload()}
  }),[s]);
 
  return <Context.Provider value={api}>{children}</Context.Provider>
