@@ -1,7 +1,7 @@
-import {ownerAllowed,sendTelegram} from "@/lib/telegram";
+import {getTelegramWebhookSecret,ownerAllowed,sendTelegram} from "@/lib/telegram";
 export async function POST(req:Request){
- const secret=(process.env.TELEGRAM_WEBHOOK_SECRET||"").trim();
- if(secret && req.headers.get("x-telegram-bot-api-secret-token")!==secret) return new Response("unauthorized",{status:401});
+ const secret=getTelegramWebhookSecret();
+ if(req.headers.get("x-telegram-bot-api-secret-token")!==secret) return new Response("unauthorized",{status:401});
  const update=await req.json();
  const msg=update?.message;
  if(!msg?.chat?.id) return Response.json({ok:true});
