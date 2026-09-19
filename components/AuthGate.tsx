@@ -3,48 +3,38 @@ import {FormEvent,useEffect,useState} from "react";
 import {supabase} from "@/lib/supabase-browser";
 
 export default function AuthGate({children}:{children:React.ReactNode}){
- const [ready,setReady]=useState(false),[allowed,setAllowed]=useState(false),[hasOwner,setHasOwner]=useState<boolean|null>(null);
- const [mode,setMode]=useState<"login"|"signup">("login");
- const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[msg,setMsg]=useState("");
+ const [ready,setReady]=useState(false),[allowed,setAllowed]=useState(false);
+ const [username,setUsername]=useState(""),[password,setPassword]=useState(""),[msg,setMsg]=useState("");
 
  async function checkAccess(){
-   const {data:{session}}=await supabase.auth.getSession();
-   const {data:ownerData}=await supabase.rpc("has_owner");
-   const ownerExists=Boolean(ownerData); setHasOwner(ownerExists);
-   if(!session){setAllowed(false);setReady(true);return}
-   const {data:access}=await supabase.rpc("my_access");
-   const row=Array.isArray(access)?access[0]:access;
-   if(row?.is_member){setAllowed(true);setReady(true);return}
-   if(!ownerExists){
-     const {data:claim,error}=await supabase.rpc("claim_first_owner");
-     if(!error && (claim==="OWNER_CREATED"||claim==="OWNER_ALREADY_EXISTS")){
-       const {data:a2}=await supabase.rpc("my_access"); const r2=Array.isArray(a2)?a2[0]:a2;
-       setAllowed(Boolean(r2?.is_member)); setReady(true); return;
-     }
-   }
-   setAllowed(false);setMsg("Akun ini tidak memiliki akses My Control.");setReady(true);
+   const token=localStorage.getItem("mycontrol_session");
+   if(!token){setAllowed(false);setReady(true);return}
+   const {data,error}=await supabase.rpc("mycontrol_session");
+   const row=Array.isArray(data)?data[0]:data;
+   if(!error&&row?.username){setAllowed(true);setReady(true);return}
+   localStorage.removeItem("mycontrol_session");
+   setAllowed(false);setReady(true);
  }
 
- useEffect(()=>{checkAccess();const {data}=supabase.auth.onAuthStateChange(()=>setTimeout(checkAccess,0));return()=>data.subscription.unsubscribe()},[]);
+ useEffect(()=>{checkAccess()},[]);
 
- async function submit(e:FormEvent){e.preventDefault();setMsg("Memproses...");
-   if(mode==="signup"){
-     const {data,error}=await supabase.auth.signUp({email,password});
-     if(error){setMsg(error.message);return}
-     if(!data.session){setMsg("Akun dibuat. Cek email untuk konfirmasi, lalu login.");setMode("login");return}
-     setMsg("Akun owner dibuat.");await checkAccess();return;
-   }
-   const {error}=await supabase.auth.signInWithPassword({email,password});
-   if(error){setMsg("Login gagal: "+error.message);return}
-   setMsg("");await checkAccess();
+ async function submit(e:FormEvent){
+   e.preventDefault();setMsg("Memproses...");
+   const {data,error}=await supabase.rpc("login_mycontrol",{p_username:username,p_password:password});
+   const row=Array.isArray(data)?data[0]:data;
+   if(error||!row?.session_token){setMsg("Username atau password salah.");return}
+   localStorage.setItem("mycontrol_session",row.session_token);
+   setAllowed(true);setMsg("");
  }
+
  if(!ready)return <div className="authScreen"><div className="authCard"><div className="authLogo">✓</div><h1>My Control</h1><p>Menyiapkan sesi aman...</p></div></div>;
  if(allowed)return <>{children}</>;
- return <div className="authScreen"><form className="authCard" onSubmit={submit}><div className="authLogo">✓</div><h1>My Control</h1><p>{hasOwner?"Masuk ke pusat kontrol Bantu Beres.":"Buat akun owner pertama untuk mengunci sistem."}</p>
-   <input className="input" type="email" required placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)}/>
-   <input className="input" type="password" minLength={8} required placeholder="Password minimal 8 karakter" value={password} onChange={e=>setPassword(e.target.value)}/>
-   <button className="btn primary authBtn">{mode==="login"?"Masuk":"Buat akun owner"}</button>
-   {!hasOwner&&<button type="button" className="linkBtn" onClick={()=>{setMode(mode==="login"?"signup":"login");setMsg("")}}>{mode==="login"?"Belum punya akun? Buat owner pertama":"Sudah punya akun? Login"}</button>}
+
+ return <div className="authScreen"><form className="authCard" onSubmit={submit}>
+   <div className="authLogo">✓</div><h1>My Control</h1><p>Masuk ke pusat kontrol Bantu Beres.</p>
+   <input className="input" autoComplete="username" required placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)}/>
+   <input className="input" type="password" autoComplete="current-password" minLength={8} required placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}/>
+   <button className="btn primary authBtn">Masuk</button>
    {msg&&<div className="notice">{msg}</div>}
  </form></div>
 }
