@@ -20,11 +20,19 @@ export default function AuthGate({children}:{children:React.ReactNode}){
 
  async function submit(e:FormEvent){
    e.preventDefault();setMsg("Memproses...");
-   const {data,error}=await supabase.rpc("login_mycontrol",{p_username:username,p_password:password});
-   const row=Array.isArray(data)?data[0]:data;
-   if(error||!row?.session_token){setMsg("Username atau password salah.");return}
-   localStorage.setItem("mycontrol_session",row.session_token);
-   setAllowed(true);setMsg("");
+   try{
+     const r=await fetch("/api/auth/login",{
+       method:"POST",
+       headers:{"content-type":"application/json"},
+       body:JSON.stringify({username,password})
+     });
+     const data=await r.json();
+     if(!r.ok||!data?.sessionToken){setMsg(data?.error||"Username atau password salah.");return}
+     localStorage.setItem("mycontrol_session",data.sessionToken);
+     setAllowed(true);setMsg("");
+   }catch(e){
+     setMsg(e instanceof Error?e.message:"Login gagal.");
+   }
  }
 
  if(!ready)return <div className="authScreen"><div className="authCard"><div className="authLogo">✓</div><h1>My Control</h1><p>Menyiapkan sesi aman...</p></div></div>;
