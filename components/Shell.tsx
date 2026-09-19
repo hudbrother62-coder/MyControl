@@ -2,7 +2,7 @@
 import Link from "next/link";
 import {useEffect,useState} from "react";
 import {usePathname} from "next/navigation";
-import {LayoutDashboard,MessageSquareText,KanbanSquare,ReceiptText,ShieldCheck,Package,ChartNoAxesCombined,Bot,PlugZap,Settings,Bell,Sun,Moon,LogOut} from "lucide-react";
+import {LayoutDashboard,MessageSquareText,KanbanSquare,ReceiptText,ShieldCheck,Package,ChartNoAxesCombined,Bot,PlugZap,Settings,Bell,Sun,Moon} from "lucide-react";
 import {useStore} from "@/components/Store";
 
 const nav=[
@@ -22,7 +22,7 @@ export default function Shell({children}:{children:React.ReactNode}){
     <div className="sideFoot"><div><span className="statusDot okDot" style={{display:"inline-block",marginRight:6}}/>Supabase terhubung</div><div><span className="statusDot" style={{display:"inline-block",marginRight:6}}/>WAHA belum terhubung</div></div>
    </aside>
    <main className="main">
-    <header className="topbar"><div><div className="topTitle">Operations Control</div><div className="tiny muted">{s.loading?"Sinkronisasi database...":"Database sinkron · CS · Sales · Payment"}</div></div><div className="topActions"><Link className="iconBtn notificationBtn" aria-label="Notifikasi pembayaran" href="/payments"><Bell size={17}/>{pending>0&&<span>{pending>9?"9+":pending}</span>}</Link><button className="iconBtn" onClick={toggle} aria-label="Tema">{dark?<Sun size={17}/>:<Moon size={17}/>}</button><button className="iconBtn" onClick={()=>s.signOut()} aria-label="Keluar"><LogOut size={17}/></button></div></header>
+    <header className="topbar"><div><div className="topTitle">Operations Control</div><div className="tiny muted">{s.loading?"Sinkronisasi database...":"Database sinkron · CS · Sales · Payment"}</div></div><div className="topActions"><Link className="iconBtn notificationBtn" aria-label="Notifikasi pembayaran" href="/payments"><Bell size={17}/>{pending>0&&<span>{pending>9?"9+":pending}</span>}</Link><button className="iconBtn" onClick={toggle} aria-label="Tema">{dark?<Sun size={17}/>:<Moon size={17}/>}</button></div></header>
     <div className="content">{s.error&&<div className="notice errorNotice"><b>Database:</b> {s.error}</div>}{children}</div>
    </main>
    <div className="mobileNav">{nav.map(([href,label,Icon])=><Link className={path===href?"active":""} key={href} href={href}><Icon/>{label}</Link>)}</div>
