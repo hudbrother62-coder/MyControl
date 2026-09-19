@@ -11,7 +11,7 @@ const customFetch: typeof fetch = async (input,init={})=>{
   const headers=new Headers(init.headers||{});
   if(typeof window!=="undefined"){
     const token=localStorage.getItem("mycontrol_session");
-    if(token)headers.set("x-mycontrol-session",token);
+    if(token)headers.set("x-client-info","mycontrol:"+token);
   }
   return fetch(input,{...init,headers});
 };
