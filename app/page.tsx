@@ -1,16 +1,9 @@
-import {ArrowUpRight,Clock3,ShieldCheck,WalletCards} from "lucide-react";
-const kpis=[["Penjualan Hari Ini","Rp 0","Belum ada transaksi"],["Closing","0","Hari ini"],["Pending","0","Perlu tindak lanjut"],["Laba Bersih","Rp 0","Hari ini"]];
-export default function Page(){return <><div className="pageHead"><div><h1>Dashboard</h1><p>Ringkasan operasional penjualan dan CS Bantu Beres.</p></div><div className="actions"><button className="btn">Lihat laporan</button><button className="btn primary">Buat order</button></div></div>
-<div className="grid4">{kpis.map(([a,b,c])=><div className="card" key={a}><div className="kpiLabel">{a}</div><div className="kpiValue">{b}</div><div className="kpiMeta">{c}</div></div>)}</div>
-<div className="grid3 section">
-<div className="card"><div className="sectionTitle"><h2>Payment queue</h2><ShieldCheck size={18}/></div><div className="empty"><strong>Belum ada verifikasi</strong>Bukti pembayaran customer akan masuk di sini.</div></div>
-<div className="card"><div className="sectionTitle"><h2>Follow-up hari ini</h2><Clock3 size={18}/></div><div className="empty"><strong>0 follow-up</strong>n8n akan mengisi antrean berdasarkan aturan yang kamu buat.</div></div>
-<div className="card"><div className="sectionTitle"><h2>Uang masuk</h2><WalletCards size={18}/></div><div className="empty"><strong>Belum ada payment event</strong>DANA, GoPay, dan bank akan ditampilkan setelah integrasi.</div></div>
-</div>
-<div className="section card"><div className="sectionTitle"><h2>Status sistem</h2><span className="badge warn">Setup</span></div><div className="tableWrap"><table className="table"><thead><tr><th>Komponen</th><th>Status</th><th>Fungsi</th></tr></thead><tbody>
-<tr><td>Web Control Center</td><td><span className="badge ok">Ready</span></td><td>Dashboard & kontrol operasional</td></tr>
-<tr><td>Google Sheets</td><td><span className="badge ok">Ready</span></td><td>Master produk, promo, FAQ</td></tr>
-<tr><td>Supabase</td><td><span className="badge warn">Connect next</span></td><td>Database transaksi & chat</td></tr>
-<tr><td>n8n</td><td><span className="badge warn">Connect next</span></td><td>Automation engine</td></tr>
-<tr><td>WAHA</td><td><span className="badge warn">Not connected</span></td><td>WhatsApp gateway</td></tr>
-</tbody></table></div></div></>}
+"use client";
+import Link from "next/link";import {useStore,rupiah} from "@/components/Store";
+export default function Page(){const s=useStore();const closing=s.orders.filter(o=>o.status==="PAID"||o.status==="FULFILLED");const revenue=closing.reduce((a,o)=>a+o.total,0);const profit=closing.reduce((a,o)=>a+(o.total-o.cost),0);const pending=s.leads.filter(l=>["FOLLOW_UP","PENDING"].includes(l.status)).length;const verify=s.payments.filter(p=>["WAITING_ANALYSIS","WAITING_OWNER","MANUAL_REVIEW"].includes(p.status)).length;const k=[["Penjualan",rupiah(revenue),"Transaksi terverifikasi"],["Closing",String(closing.length),"Paid + fulfilled"],["Pending",String(pending),"Perlu tindak lanjut"],["Laba Bersih",rupiah(profit),"Revenue - HPP"]];
+return <><div className="pageHead"><div><h1>Dashboard</h1><p>Ringkasan yang langsung bisa ditindaklanjuti.</p></div><div className="actions"><Link className="btn" href="/reports">Lihat laporan</Link><Link className="btn primary" href="/orders">Buat order</Link></div></div>
+<div className="grid4">{k.map(([a,b,c])=><div className="card" key={a}><div className="kpiLabel">{a}</div><div className="kpiValue">{b}</div><div className="kpiMeta">{c}</div></div>)}</div>
+<div className="grid3 section"><div className="card"><div className="sectionTitle"><h2>Payment queue</h2><span className="badge warn">{verify}</span></div>{verify? <Link className="btn primary" href="/payments">Buka verifikasi</Link>:<div className="empty"><strong>Aman</strong>Tidak ada pembayaran menunggu review.</div>}</div>
+<div className="card"><div className="sectionTitle"><h2>Follow-up</h2><span className="badge">{pending}</span></div>{pending?<Link className="btn" href="/sales">Lihat pipeline</Link>:<div className="empty"><strong>Belum ada antrean</strong>Lead follow-up akan muncul di sini.</div>}</div>
+<div className="card"><div className="sectionTitle"><h2>Sistem</h2></div><div className="settingRow"><div><b>Google Sheets</b><span>Master produk</span></div><span className="badge ok">Ready</span></div><div className="settingRow"><div><b>WAHA</b><span>WhatsApp gateway</span></div><span className="badge warn">Belum</span></div></div></div>
+<div className="section card"><div className="sectionTitle"><h2>Aktivitas cepat</h2></div><div className="quickLinks"><Link href="/inbox" className="quickCard"><b>Inbox</b><span>Pantau chat & takeover</span></Link><Link href="/sales" className="quickCard"><b>Sales</b><span>Kelola lead</span></Link><Link href="/payments" className="quickCard"><b>Payments</b><span>Verifikasi bukti</span></Link><Link href="/automation" className="quickCard"><b>Automation</b><span>Atur bot tanpa buka n8n</span></Link></div></div></>}
