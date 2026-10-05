@@ -1,48 +1,95 @@
 "use client";
-import {FormEvent,useEffect,useState} from "react";
-import {supabase} from "@/lib/supabase-browser";
+import { FormEvent, useEffect, useState } from "react";
+import Logo from "@/components/Logo";
 
-export default function AuthGate({children}:{children:React.ReactNode}){
- const [ready,setReady]=useState(false),[allowed,setAllowed]=useState(false);
- const [username,setUsername]=useState(""),[password,setPassword]=useState(""),[msg,setMsg]=useState("");
+export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false),
+    [allowed, setAllowed] = useState(false);
+  const [username, setUsername] = useState(""),
+    [password, setPassword] = useState(""),
+    [msg, setMsg] = useState("");
 
- async function checkAccess(){
-   const token=localStorage.getItem("mycontrol_session");
-   if(!token){setAllowed(false);setReady(true);return}
-   const {data,error}=await supabase.rpc("mycontrol_session");
-   const row=Array.isArray(data)?data[0]:data;
-   if(!error&&row?.username){setAllowed(true);setReady(true);return}
-   localStorage.removeItem("mycontrol_session");
-   setAllowed(false);setReady(true);
- }
+  async function checkAccess() {
+    try {
+      const r = await fetch("/api/auth/session", { cache: "no-store" });
+      const data = await r.json();
+      setAllowed(Boolean(data.ok));
+    } catch {
+      setAllowed(false);
+    } finally {
+      setReady(true);
+    }
+  }
 
- useEffect(()=>{checkAccess()},[]);
+  useEffect(() => {
+    checkAccess();
+  }, []);
 
- async function submit(e:FormEvent){
-   e.preventDefault();setMsg("Memproses...");
-   try{
-     const r=await fetch("/api/auth/login",{
-       method:"POST",
-       headers:{"content-type":"application/json"},
-       body:JSON.stringify({username,password})
-     });
-     const data=await r.json();
-     if(!r.ok||!data?.sessionToken){setMsg(data?.error||"Username atau password salah.");return}
-     localStorage.setItem("mycontrol_session",data.sessionToken);
-     setAllowed(true);setMsg("");
-   }catch(e){
-     setMsg(e instanceof Error?e.message:"Login gagal.");
-   }
- }
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setMsg("Memproses...");
+    try {
+      const r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data?.ok) {
+        setMsg(data?.error || "Username atau password salah.");
+        return;
+      }
 
- if(!ready)return <div className="authScreen"><div className="authCard"><div className="authLogo">✓</div><h1>My Control</h1><p>Menyiapkan sesi aman...</p></div></div>;
- if(allowed)return <>{children}</>;
+      setAllowed(true);
+      setMsg("");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Login gagal.");
+    }
+  }
 
- return <div className="authScreen"><form className="authCard" onSubmit={submit}>
-   <div className="authLogo">✓</div><h1>My Control</h1><p>Masuk ke pusat kontrol Bantu Beres.</p>
-   <input className="input" autoComplete="username" required placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)}/>
-   <input className="input" type="password" autoComplete="current-password" minLength={8} required placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}/>
-   <button className="btn primary authBtn">Masuk</button>
-   {msg&&<div className="notice">{msg}</div>}
- </form></div>
+  if (!ready)
+    return (
+      <div className="authScreen">
+        <div className="authCard">
+          <div className="authLogo">
+            <Logo />
+          </div>
+          <h1>My Control</h1>
+          <p>Menyiapkan sesi aman...</p>
+        </div>
+      </div>
+    );
+  if (allowed) return <>{children}</>;
+
+  return (
+    <div className="authScreen">
+      <form className="authCard" onSubmit={submit}>
+        <div className="authLogo">
+          <Logo />
+        </div>
+        <h1>My Control</h1>
+        <p>Masuk ke pusat kontrol Bantu Beres.</p>
+        <input
+          className="input"
+          autoComplete="username"
+          required
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+        <input
+          className="input"
+          type="password"
+          autoComplete="current-password"
+          minLength={8}
+          required
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button className="btn primary authBtn">Masuk</button>
+        {msg && <div className="notice">{msg}</div>}
+      </form>
+    </div>
+  );
 }

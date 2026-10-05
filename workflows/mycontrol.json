@@ -1,0 +1,1886 @@
+{
+  "name": "My Control — Queue v2 (install SQL 001 + 002)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "MY CONTROL / BANTU BERES SALES CONTROL CENTER\nSATU WORKFLOW N8N — AI AGENT\n\nZona:\nA. WAHA INBOUND → dedupe → Supabase → ACK cepat\nB. AI WORKER → 3 Gemini Flash slots → Flash-Lite fallback\nC. OUTBOUND WORKER → WAHA send → retry tanpa memanggil AI ulang\nD. FOLLOW-UP SCHEDULER → follow-up AI yang sudah direncanakan agent\n\nSebelum Publish:\n1) jalankan SQL companion;\n2) set environment variables;\n3) pilih 4 Gemini credentials/model nodes;\n4) hubungkan webhook WAHA ke Production URL;\n5) test end-to-end.",
+        "height": 460,
+        "width": 700
+      },
+      "id": "4414f4fa-77e2-4c99-a7e5-dfe1de7fc52a",
+      "name": "00 - READ ME",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Inbound HARUS cepat.\nWAHA hanya menunggu sampai:\nnormalize → validate → atomic ingest/dedupe → HTTP 200.\n\nGemini TIDAK berada pada jalur ACK webhook.\nfromMe/group/non-message tidak diproses AI.",
+        "height": 340,
+        "width": 620
+      },
+      "id": "f2bc9f0f-5129-49fc-9ec1-4aa583404624",
+      "name": "A - WAHA INBOUND",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        -50
+      ]
+    },
+    {
+      "parameters": {
+        "content": "AI Agent adalah otak sales.\nSupabase = memory/source of truth.\nTools hanya READ-ONLY: Products, FAQ, Promotions + Think.\n\nFallback:\nSlot 1 Flash → Slot 2 Flash → Slot 3 Flash → Flash-Lite.\nJika semua gagal: AI job RETRY/FAILED, inbound tetap aman.",
+        "height": 480,
+        "width": 700
+      },
+      "id": "79cb61e1-4e5d-4d0c-8952-9045ca5f72f6",
+      "name": "B - AI AGENT WORKER",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Outbound dipisahkan dari AI.\nJika WAHA gagal, yang diretry hanya outbound job.\nAI tidak dipanggil ulang.\nIdempotency dijaga oleh mc_outbound_jobs.idempotency_key.",
+        "height": 340,
+        "width": 620
+      },
+      "id": "1a2415ac-7ac8-4a66-baf7-9b646494f315",
+      "name": "C - OUTBOUND WORKER",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "content": "AI Agent membuat followup_plan maksimal 3 item saat percakapan diproses.\nSupabase menjadwalkannya.\nPesan baru dari customer otomatis membatalkan follow-up lama.\nScheduler hanya dispatch pada jam 08:00–22:00 Asia/Jakarta.",
+        "height": 340,
+        "width": 620
+      },
+      "id": "19689e6d-a77e-468e-9ac4-5357c1d74b71",
+      "name": "D - FOLLOW-UP",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mycontrol/waha/inbound",
+        "responseMode": "responseNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "id": "2d1ed3cf-8933-4bcc-907a-458dbfdd9d61",
+      "name": "WAHA Incoming Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        80
+      ],
+      "webhookId": "0e976366-4f15-4f0f-b2dc-43a771e744ac",
+      "notes": "Set Header Auth credential: X-MyControl-Secret. Configure identical WAHA webhook custom header. No secret in JSON."
+    },
+    {
+      "parameters": {
+        "jsCode": "const b=$json.body??$json,p=b.payload??b,k=p.key??{};\nconst id=k.id??p.id??p.message?.id??p._data?.id;\nconst messageId=typeof id==='string'?id:(id?._serialized??id?.id??'');\nconst chat=k.remoteJid??p.from??p.chatId??p._data?.from??'';\nconst chatId=typeof chat==='string'?chat:'';\nconst rawFromMe=k.fromMe??p.fromMe??p._data?.id?.fromMe??false;\nconst fromMe=rawFromMe===true||rawFromMe==='true';\nconst eventType=String(b.event??'message'),isGroup=chatId.endsWith('@g.us');\nconst text=p.body??p.text??p.message?.conversation??p._data?.body??'';\nconst valid=typeof messageId==='string'&&messageId.length>0&&/^[0-9]+@(c\\.us|s\\.whatsapp\\.net|lid|g\\.us)$/.test(chatId)&&['message','message.any'].includes(eventType);\nreturn [{json:{valid,external_message_id:messageId,event_type:eventType,chat_id:chatId,phone:chatId.replace(/@.+$/,''),message_text:typeof text==='string'?text:'',from_me:fromMe,is_group:isGroup,raw:b}}];"
+      },
+      "id": "49849817-36ac-46eb-9df3-3f2987482f37",
+      "name": "Normalize WAHA Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -650,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2b30504a-ca22-448b-8791-e810743db4f1",
+              "leftValue": "={{$json.valid}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3a5e2848-2240-4f8d-a1b0-9df99dd2c5eb",
+      "name": "Valid Message Event?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -390,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_ingest_whatsapp'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_external_message_id:$json.external_message_id,p_event_type:$json.event_type,p_chat_id:$json.chat_id,p_phone:$json.phone,p_message_text:$json.message_text,p_from_me:$json.from_me,p_is_group:$json.is_group,p_payload:$json.raw}) }}"
+      },
+      "id": "e059683f-db5f-4c7f-b379-7ac1075e7293",
+      "name": "Atomic Ingest + Dedupe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -120,
+        20
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok:true, accepted:true, result:$json} }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "aec7048d-f8cc-4748-8e75-521bde8df5c3",
+      "name": "ACK 200 Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        160,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok:true, accepted:false, ignored:true} }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "059853e5-8020-4c54-88c0-205b96f879c5",
+      "name": "ACK 200 Ignored",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -120,
+        190
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "91e63486-40df-4f35-8153-75b54a399c19",
+      "name": "AI Queue Poll - 5s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_claim_ai_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_worker:$env.N8N_WORKER_ID || 'n8n'}) }}"
+      },
+      "id": "5df32a5c-f1e5-47e8-9166-1d300f7b6ef0",
+      "name": "Claim AI Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -650,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fdde564c-9411-4784-aec9-415fa7b64548",
+              "leftValue": "={{$json.job_id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d97b96a9-b768-4c6e-a1ac-41d8c3bde43f",
+      "name": "AI Job Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -400,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_get_ai_context'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_chat_id:$('Claim AI Job').first().json.chat_id,p_history_limit:30}) }}"
+      },
+      "id": "87f54012-b476-4254-bc29-ba1b9128c9d2",
+      "name": "Load Supabase Memory + Knowledge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -130,
+        770
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $('Claim AI Job').first().json;\nconst ctx = $json ?? {};\n\nconst history = ctx.history ?? [];\nconst lead = ctx.lead_state ?? {};\nconst knowledge = ctx.knowledge ?? [];\n\nconst agentInput = [\n  `MODE: INBOUND_SALES`,\n  `CHAT_ID: ${job.chat_id}`,\n  `CURRENT CUSTOMER MESSAGE:\\n${job.message_text || ''}`,\n  `LEAD STATE:\\n${JSON.stringify(lead)}`,\n  `RECENT CONVERSATION HISTORY:\\n${JSON.stringify(history)}`,\n  `OFFICIAL KNOWLEDGE SNAPSHOT:\\n${JSON.stringify(knowledge)}`,\n  `Use the connected tools when you need to re-check official products, promotions, or FAQ.`\n].join('\\n\\n');\n\nreturn [{\n  json: {\n    job_id: job.job_id,\n    inbound_event_id: job.inbound_event_id,\n    chat_id: job.chat_id,\n    attempt_count: job.attempt_count ?? 1,\n    agent_input: agentInput\n  }\n}];"
+      },
+      "id": "0b804c3e-7dc8-4b34-9d3e-fc8b56a1dd53",
+      "name": "Prepare Agent Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        130,
+        770
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "={{$env.GEMINI_PRIMARY_MODEL}}",
+        "options": {
+          "temperature": 0.45
+        }
+      },
+      "id": "48aaa28a-717c-4643-a191-081c8d4674af",
+      "name": "Gemini Primary - Credential Slot 1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        450,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "={{$env.GEMINI_PRIMARY_MODEL}}",
+        "options": {
+          "temperature": 0.45
+        }
+      },
+      "id": "b6226c3f-6bee-41d2-a60c-828731c80312",
+      "name": "Gemini Primary - Credential Slot 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        980,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "={{$env.GEMINI_PRIMARY_MODEL}}",
+        "options": {
+          "temperature": 0.45
+        }
+      },
+      "id": "a4105eba-66ff-4267-afea-dfa5dece33a0",
+      "name": "Gemini Primary - Credential Slot 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1510,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "={{$env.GEMINI_FALLBACK_MODEL}}",
+        "options": {
+          "temperature": 0.45
+        }
+      },
+      "id": "10465e36-4a05-48bd-98eb-82d5ffc45bf5",
+      "name": "Gemini Fallback - Credential",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2040,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{$json.agent_input}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "maxIterations": 6,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "cc00a2a5-5b91-4f75-91b4-17253b03a51b",
+      "name": "Sales AI Agent - Slot 1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        450,
+        770
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{$json.agent_input}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "maxIterations": 6,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "885b8b74-b2cc-4d42-95ac-d385fc678ba1",
+      "name": "Sales AI Agent - Slot 2",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        980,
+        770
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{$json.agent_input}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "maxIterations": 6,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "4b020a04-1fbd-4767-9cf2-8d6db7694b0b",
+      "name": "Sales AI Agent - Slot 3",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1510,
+        770
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{$json.agent_input}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "maxIterations": 6,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "8bd99ec8-100d-4ff4-8399-2b7945a6d812",
+      "name": "Sales AI Agent - Flash-Lite",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2040,
+        770
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "938ab9f2-ea95-4d7d-a49b-2bf8fabde7ea",
+      "name": "Think Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        650,
+        1370
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Gunakan tool ini untuk mengambil master produk resmi Bantu Beres. Wajib gunakan bila perlu memastikan nama produk, fitur, benefit, harga, demo, atau checkout. Jangan mengarang field yang kosong.",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/mc_runtime_knowledge'}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "kind",
+              "value": "eq.PRODUCT"
+            },
+            {
+              "name": "active",
+              "value": "eq.true"
+            },
+            {
+              "name": "select",
+              "value": "source_key,payload"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8494ec7f-31d4-4d4d-92d6-9c36b7e9b182",
+      "name": "Tool - Get Official Products",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        1370
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Gunakan tool ini untuk mengecek promo resmi. Jika data kosong atau tidak ada promo aktif, jangan membuat diskon sendiri.",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/mc_runtime_knowledge'}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "kind",
+              "value": "eq.PROMOTION"
+            },
+            {
+              "name": "active",
+              "value": "eq.true"
+            },
+            {
+              "name": "select",
+              "value": "source_key,payload"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9c41c67c-43f6-4480-9846-7309f7226d17",
+      "name": "Tool - Get Active Promotions",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        1370
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Gunakan tool ini untuk mencari jawaban FAQ resmi Bantu Beres. Jangan menambah kebijakan yang tidak ada.",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/mc_runtime_knowledge'}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "kind",
+              "value": "eq.FAQ"
+            },
+            {
+              "name": "active",
+              "value": "eq.true"
+            },
+            {
+              "name": "select",
+              "value": "source_key,payload"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a647cb1-f497-424b-abfb-9c1a9eac0f74",
+      "name": "Tool - Get Official FAQ",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        1370
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"intent\": \"PRODUCT_INTEREST\",\n  \"stage\": \"INTERESTED\",\n  \"product_id\": \"KP001\",\n  \"lead_status\": \"INTERESTED\",\n  \"needs_human\": false,\n  \"should_reply\": true,\n  \"reply\": \"Kalau kebutuhan Kakak...\",\n  \"should_followup\": true,\n  \"followup_plan\": [\n    {\n      \"sequence_no\": 1,\n      \"after_minutes\": 1440,\n      \"message\": \"Kak, saya lanjutkan yang kemarin ya...\"\n    }\n  ],\n  \"reason_code\": \"MATCHED_PRODUCT\"\n}"
+      },
+      "id": "88309aac-7054-41ac-981e-b81949a8a0cd",
+      "name": "Structured Sales Decision",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1520,
+        1370
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json: $('Prepare Agent Input').first().json}];"
+      },
+      "id": "3562fe31-1aa9-4c41-a81b-79f91a1d867b",
+      "name": "Restore Input for Slot 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        930
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json: $('Prepare Agent Input').first().json}];"
+      },
+      "id": "d51d79f7-e520-408a-90ee-1612d3f6c824",
+      "name": "Restore Input for Slot 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1290,
+        930
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json: $('Prepare Agent Input').first().json}];"
+      },
+      "id": "b444320c-7faa-49be-a117-51ad8641b7dc",
+      "name": "Restore Input for Flash-Lite",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        930
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_PRIMARY_MODEL,\n  slot_used: 1\n}}];"
+      },
+      "id": "ed1a7286-7132-42f4-9a89-1d3b2bc1d4a4",
+      "name": "Use Decision - Slot 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        1010
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_PRIMARY_MODEL,\n  slot_used: 2\n}}];"
+      },
+      "id": "20a7b8cb-2d44-406f-ab22-d0ad4193aead",
+      "name": "Use Decision - Slot 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        1010
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_PRIMARY_MODEL,\n  slot_used: 3\n}}];"
+      },
+      "id": "497b23bc-6ad1-4e93-822c-046647a7d840",
+      "name": "Use Decision - Slot 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1510,
+        1010
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_FALLBACK_MODEL,\n  slot_used: 3\n}}];"
+      },
+      "id": "86095440-7a63-4f6a-add1-b8fc6aeb829c",
+      "name": "Use Decision - Flash-Lite",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        1010
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_commit_claimed_ai_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_claim_attempt:$(\"Prepare Agent Input\").first().json.attempt_count,p_job_id:$json.job_id,p_decision:$json.decision,p_model_used:$json.model_used,p_slot_used:$json.slot_used,p_chat_id:$json.chat_id,p_reply:$json.reply}) }}"
+      },
+      "id": "79a1167a-3b06-4783-8fdc-fdc68d88ad4a",
+      "name": "Commit AI Decision + Schedule Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2370,
+        1010
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $('Claim AI Job').first().json;\nconst raw = $json ?? {};\nconst message =\n  raw.error?.message ??\n  raw.message ??\n  raw.description ??\n  JSON.stringify(raw).slice(0, 2000);\n\nconst attempt = Number(job.attempt_count || 1);\nconst delays = [5, 15, 45, 120, 300];\nconst delay_seconds = delays[Math.min(Math.max(attempt - 1, 0), delays.length - 1)];\nreturn [{json:{\n  job_id: job.job_id,\n  attempt_count: attempt,\n  should_retry: attempt < 5,\n  delay_seconds,\n  error_message: String(message || 'All AI providers failed')\n}}];"
+      },
+      "id": "5c819b82-5a3c-426e-8f2a-7745a9148c3c",
+      "name": "AI Exhausted - Build Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2290,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "89755cab-851e-4f49-b913-2349066dc21f",
+              "leftValue": "={{$json.should_retry}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "49a703b4-3121-4dab-8e9c-b99778ea6714",
+      "name": "Retry AI Job?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2550,
+        850
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_end_ai_claim'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_job_id:$json.job_id,p_claim_attempt:$('Claim AI Job').first().json.attempt_count,p_error:$json.error_message,p_status:'RETRY',p_delay_seconds:$json.delay_seconds||30})}}"
+      },
+      "id": "6ab1f8cb-5c47-4f1f-8c5a-fa1bb8c4d828",
+      "name": "Mark AI Job RETRY",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2820,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_end_ai_claim'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_job_id:$json.job_id,p_claim_attempt:$('Claim AI Job').first().json.attempt_count,p_error:$json.error_message,p_status:'FAILED',p_delay_seconds:$json.delay_seconds||30})}}"
+      },
+      "id": "15dc1e0a-5c14-4cc6-8b47-426d3175a32f",
+      "name": "Mark AI Job FAILED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2820,
+        930
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "2efe8bda-ca5f-48b8-8831-778a61a18101",
+      "name": "Outbound Queue Poll - 5s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_claim_outbound_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_worker:$env.N8N_WORKER_ID || 'n8n'}) }}"
+      },
+      "id": "0eababa3-0238-49bb-a04a-f728044768c6",
+      "name": "Claim Outbound Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -650,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9cded688-e6bc-435e-bfb8-108e97db3a31",
+              "leftValue": "={{$json.job_id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d182bf56-f3e2-4d4c-b6c8-cdb0fca0e7f0",
+      "name": "Outbound Job Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -390,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.WAHA_BASE_URL + '/api/sendText'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.WAHA_API_KEY}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({session:$env.WAHA_SESSION || 'default',chatId:$('Claim Outbound Job').first().json.chat_id,text:$('Claim Outbound Job').first().json.body}) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "226a7cdc-919e-40ac-8b50-e56b2c1be048",
+      "name": "WAHA Send Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        1980
+      ],
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_mark_outbound_sent'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_job_id:$('Claim Outbound Job').first().json.job_id,p_provider_message_id:$json.provider_message_id}) }}"
+      },
+      "id": "98dc2965-e0da-4825-9c27-63d4d96d54ed",
+      "name": "Mark Outbound SENT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        180,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job=$('Claim Outbound Job').first().json;const raw=$json??{};\nreturn [{json:{job_id:job.job_id,error_message:String(raw.error?.message??raw.message??'Unknown WAHA send result').slice(0,2000)}}];"
+      },
+      "id": "9f6dfde6-4903-4eca-ada7-d180404f4f9e",
+      "name": "WAHA Failed - Build Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        2110
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 60
+            }
+          ]
+        }
+      },
+      "id": "6791e841-e86b-44c8-ae5a-12933a70ba64",
+      "name": "Follow-up Scheduler - 60s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_dispatch_due_followups'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_limit:25}) }}"
+      },
+      "id": "16d73c77-ea4e-4a8a-a6f0-b41081e00f35",
+      "name": "Dispatch Due Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -620,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_unknown_outbound_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_job_id:$json.job_id,p_error:$json.error_message}) }}"
+      },
+      "id": "d3f1cf87-18c3-47bd-b46a-e7c49c50a594",
+      "name": "Mark Outbound UNKNOWN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        710,
+        2180
+      ]
+    },
+    {
+      "id": "542135d7-1ca7-4c70-85ba-69fb0bad65b3",
+      "name": "Validate WAHA Receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        1890
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "jsCode": "const raw=$json;const id=typeof raw.id==='string'?raw.id:(raw.id?._serialized??raw.key?.id??raw.message?.id);if(typeof id!=='string'||!id.trim())throw new Error('WAHA receipt missing message ID');return [{json:{provider_message_id:id}}];"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_recover_expired_jobs'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({})}}"
+      },
+      "id": "b2e8f454-38fe-4b65-a059-5a812b9d5719",
+      "name": "Recover Expired Queue Leases",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -620,
+        2700
+      ]
+    }
+  ],
+  "connections": {
+    "WAHA Incoming Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize WAHA Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize WAHA Event": {
+      "main": [
+        [
+          {
+            "node": "Valid Message Event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Message Event?": {
+      "main": [
+        [
+          {
+            "node": "Atomic Ingest + Dedupe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ACK 200 Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atomic Ingest + Dedupe": {
+      "main": [
+        [
+          {
+            "node": "ACK 200 Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Queue Poll - 5s": {
+      "main": [
+        [
+          {
+            "node": "Claim AI Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim AI Job": {
+      "main": [
+        [
+          {
+            "node": "AI Job Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Job Found?": {
+      "main": [
+        [
+          {
+            "node": "Load Supabase Memory + Knowledge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Load Supabase Memory + Knowledge": {
+      "main": [
+        [
+          {
+            "node": "Prepare Agent Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Agent Input": {
+      "main": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales AI Agent - Slot 1": {
+      "main": [
+        [
+          {
+            "node": "Use Decision - Slot 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Restore Input for Slot 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Input for Slot 2": {
+      "main": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales AI Agent - Slot 2": {
+      "main": [
+        [
+          {
+            "node": "Use Decision - Slot 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Restore Input for Slot 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Input for Slot 3": {
+      "main": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales AI Agent - Slot 3": {
+      "main": [
+        [
+          {
+            "node": "Use Decision - Slot 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Restore Input for Flash-Lite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Input for Flash-Lite": {
+      "main": [
+        [
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales AI Agent - Flash-Lite": {
+      "main": [
+        [
+          {
+            "node": "Use Decision - Flash-Lite",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Decision - Slot 1": {
+      "main": [
+        [
+          {
+            "node": "Commit AI Decision + Schedule Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Decision - Slot 2": {
+      "main": [
+        [
+          {
+            "node": "Commit AI Decision + Schedule Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Decision - Slot 3": {
+      "main": [
+        [
+          {
+            "node": "Commit AI Decision + Schedule Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Decision - Flash-Lite": {
+      "main": [
+        [
+          {
+            "node": "Commit AI Decision + Schedule Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Exhausted - Build Retry": {
+      "main": [
+        [
+          {
+            "node": "Retry AI Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry AI Job?": {
+      "main": [
+        [
+          {
+            "node": "Mark AI Job RETRY",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark AI Job FAILED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Primary - Credential Slot 1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Primary - Credential Slot 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Primary - Credential Slot 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Fallback - Credential": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Think Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool - Get Official Products": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool - Get Active Promotions": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool - Get Official FAQ": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Sales Decision": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Sales AI Agent - Slot 1",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 2",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Slot 3",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Sales AI Agent - Flash-Lite",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbound Queue Poll - 5s": {
+      "main": [
+        [
+          {
+            "node": "Claim Outbound Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Outbound Job": {
+      "main": [
+        [
+          {
+            "node": "Outbound Job Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbound Job Found?": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "WAHA Send Text": {
+      "main": [
+        [
+          {
+            "node": "Validate WAHA Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA Failed - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Failed - Build Retry": {
+      "main": [
+        [
+          {
+            "node": "Mark Outbound UNKNOWN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow-up Scheduler - 60s": {
+      "main": [
+        [
+          {
+            "node": "Dispatch Due Follow-ups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Recover Expired Queue Leases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate WAHA Receipt": {
+      "main": [
+        [
+          {
+            "node": "Mark Outbound SENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA Failed - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commit AI Decision + Schedule Follow-ups": {
+      "main": [
+        [],
+        [
+          {
+            "node": "AI Exhausted - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "architecture": "single-workflow-ai-agent-durable-supabase-queues",
+    "notes": "Configure Gemini credentials after import."
+  }
+}

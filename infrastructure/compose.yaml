@@ -1,0 +1,41 @@
+# Optional VPS stack. Keep existing production volumes; do not use this file to replace them.
+services:
+  n8n:
+    image: ${N8N_IMAGE:?Set a tested, pinned n8n image tag}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:?Set public n8n hostname}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:?Set HTTPS webhook base URL}
+      N8N_PROXY_HOPS: 1
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Preserve existing encryption key}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      GENERIC_TIMEZONE: Asia/Jakarta
+      TZ: Asia/Jakarta
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      WAHA_BASE_URL: http://waha:3000
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_SESSION: default
+      N8N_WORKER_ID: mycontrol-vps
+      GEMINI_PRIMARY_MODEL: ${GEMINI_PRIMARY_MODEL:?Set a model available in your Google project}
+      GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:?Set an available fallback model}
+    volumes:
+      - n8n_data:/home/node/.n8n
+  waha:
+    image: ${WAHA_IMAGE:?Set a tested, pinned WAHA image tag}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY:?Set WAHA API key}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Set WAHA dashboard password}
+      TZ: Asia/Jakarta
+    volumes:
+      - waha_sessions:/app/.sessions
+volumes:
+  n8n_data:
+  waha_sessions:
