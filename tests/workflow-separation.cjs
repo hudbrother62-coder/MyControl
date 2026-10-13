@@ -57,7 +57,7 @@ test("all connections and named node expressions resolve inside their workflow",
     }
     for (const node of functional(workflow)) {
       const text = JSON.stringify(node.parameters || {});
-      const pattern = /\\$\\(\\s*['"`]([^'"`]+)['"`]\\s*\\)|\\$node\\[['"]([^'"]+)['"]\\]/g;
+      const pattern = /\$\(\s*['"`]([^'"`]+)['"`]\s*\)|\$node\[['"]([^'"]+)['"]\]/g;
       for (const ref of text.matchAll(pattern))
         assert(names.has(ref[1] || ref[2]), "cross-workflow reference: " + node.name);
     }
