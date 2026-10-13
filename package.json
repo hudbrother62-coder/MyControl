@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/database.cjs tests/workflow.cjs tests/server.cjs tests/legacy.cjs",
+    "test": "node --test tests/database.cjs tests/workflow.cjs tests/server.cjs tests/legacy.cjs tests/workflow-separation.cjs",
     "typecheck": "tsc --noEmit",
     "test:http": "node tests/http-smoke.cjs"
   },
