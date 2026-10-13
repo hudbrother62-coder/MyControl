@@ -1,6 +1,6 @@
 # My Control — Bantu Beres Sales Center
 
-Dashboard, owner Telegram bot and durable WhatsApp queue. This update prepares the integration contract. It does **not** apply Supabase migrations, import/activate n8n workflows, or modify WAHA sessions.
+Dashboard, owner Telegram bot and durable WhatsApp queue. As of 13 October 2026, the three additive Supabase queue/security/knowledge migrations were **applied and verified** on the original My Control project. The four n8n workflow exports are committed but **not imported or activated** in the user's local n8n; the WAHA session has not been modified.
 
 ## Validation
 
@@ -8,11 +8,11 @@ Run `npm ci`, `npm test`, `npm run typecheck`, `npm run build`.
 
 Tests execute PostgreSQL SQL using PGlite, workflow JavaScript, authentication/CSRF and Telegram failure isolation. Actual n8n import/runtime, Gemini, provider delivery and the existing Supabase business schema still require activation testing.
 
-## Supabase — deferred installation
+## Supabase — installed on original My Control project
 
 Existing business tables (`products`, `customers`, `leads`, `orders`, `payment_verifications`, `payment_evidence`, `conversations`, `messages`, `bot_settings`) and `login_mycontrol` remain required. No business data is replaced.
 
-Back up, then apply `database/001_queue.sql`, `002_reliability.sql`, `003_business_sync.sql` in that order during a maintenance window. The queue is restricted to service-role access. Migration 003 transactionally mirrors product/settings edits into official AI knowledge. Review existing business-table RLS and payment triggers separately; this code change does not revoke old public database policies.
+The three SQL migrations were applied in order on **2026-10-13** (migration records `mycontrol_001_durable_queue`, `mycontrol_002_reliability_security`, `mycontrol_003_business_knowledge_sync`). **Do not rerun** them as a fresh install. Verified existing 3 products, 2 customers and 10 bot settings still present; 3 active product knowledge entries; 9 `mc_*` tables with RLS enabled; 22 `mc_*` functions without anon/authenticated EXECUTE grants. The queue is restricted to service-role access. Migration 003 transactionally mirrors product/settings edits into official AI knowledge. Review existing business-table RLS and payment triggers separately; this code change does not revoke old public database policies.
 
 ## Vercel configuration
 
@@ -22,7 +22,7 @@ Login calls the existing login RPC and issues a signed eight-hour HttpOnly sessi
 
 Existing `OWNER_TELEGRAM_CHAT_ID` is accepted as an alias for `TELEGRAM_OWNER_CHAT_ID`. Missing owner configuration denies bot commands. Missing backend configuration returns unavailable states rather than fake Connected labels.
 
-The Git-connected `main` branch deploys automatically. With Supabase deferred, queue-backed inbox/Telegram features remain unavailable until migrations are applied. For health checks, Vercel must be able to reach the configured n8n/WAHA URL; localhost on a remote VPS is not reachable from Vercel.
+The Git-connected `main` branch deploys automatically. The database schema is now installed, but queue-backed inbox/Telegram/provider features still require Vercel environment verification, n8n imports/activation, live WAHA pairing, and end-to-end tests; a READY web deployment does not mean those functions are live. For health checks, Vercel must be able to reach the configured n8n/WAHA URL; localhost on a remote VPS is not reachable from Vercel.
 
 ## n8n / WAHA installation
 
