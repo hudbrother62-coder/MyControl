@@ -11,14 +11,14 @@ Empat file berikut dipisahkan **langsung dari** `workflows/mycontrol.json` (47 n
 Workflow lama `workflows/mycontrol.json` **tidak dihapus atau diganti**. **JANGAN mengaktifkan webhook asli bersamaan dengan `01-waha-inbound`**; kedua workflow memakai path yang sama sehingga berebut request atau terjadi duplikasi. Empat file baru semuanya `active:false`.
 
 ## Kondisi nyata yang masih memblokir aktivasi
-- Supabase produksi **My Control** (ref `vpneonfehqfsxclqcman`) pada audit 13 Oktober 2026 dalam kondisi INACTIVE; migrasi `database/001_queue.sql`, `002_reliability.sql`, `003_business_sync.sql` masih perlu backup dan verifikasi schema bisnis sebelum diterapkan.
+- Supabase produksi **My Control** (ref `vpneonfehqfsxclqcman`) dipulihkan menjadi ACTIVE_HEALTHY pada 13 Oktober 2026. Ketiga migrasi `database/001_queue.sql`, `002_reliability.sql`, `003_business_sync.sql` **sudah berhasil diterapkan** dan diverifikasi (9 tabel `mc_*` RLS, 22 fungsi `mc_*` terbatas service role). 20 tabel bisnis asli dan data lama terpelihara.
 - Screenshot WAHA lokal `localhost:3000`: worker 1 not connected, 0 session. n8n lokal `localhost:5678` sudah terbuka, belum ada bukti workflow ini diimpor.
 - Vercel `my-control` pada commit `c36fa39` terakhir READY, **bukan bukti** database/WAHA/n8n end-to-end sudah berjalan.
 
 ## Urutan pemasangan, *setelah* database dan worker pulih
 1. Simpan backup n8n credential/encryption key, workflow lama, data Supabase, dan volume WAHA session. Jangan jalankan overwrite volume Docker.
 2. Pastikan My Control memakai project Supabase `vpneonfehqfsxclqcman`; proyek awal KENDALIKU `jhlgihzrtutsctzwcdqt` adalah **database lain** dan tidak boleh dimigrasi silang tanpa peta data yang disetujui.
-3. Periksa schema bisnis eksisting, migration dry-run/backup, dan RLS. Terapkan `001_queue.sql`, lalu `002_reliability.sql`, lalu `003_business_sync.sql` hanya ketika database ACTIVE dan schema sudah dicek. Validasi RPC PostgREST sebelum mengaktifkan trigger.
+3. Verifikasi ulang tiga migrasi yang **sudah terpasang** menggunakan Supabase Migration History dan tabel `mc_*`; jangan menjalankan ulang migrasi tanpa alasan. Lanjutkan tes RPC PostgREST, pengamanan service-role, dan bot toggle sebelum aktivasi trigger.
 4. Hubungkan WAHA worker dengan API key di Dashboard `http://localhost:3000/dashboard/`, buat session `default`, QR pairing sampai `WORKING`.
 5. Impor ke n8n keempat file JSON, **biarkan inactive**. Konfigurasikan environment **server-side**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION=default`, `N8N_WORKER_ID`, `GEMINI_PRIMARY_MODEL`, `GEMINI_FALLBACK_MODEL`. Pilih Gemini credentials di masing-masing model node sesuai kapasitas yang benar-benar tersedia. Model IDs dalam environment harus cocok dengan akses provider; jangan berasumsi `gemini-3.5-flash` tersedia.
 6. Di n8n inbound Webhook set credential Header Auth: `X-MyControl-Secret` dengan secret yang kuat. WAHA Webhook harus mengirim header yang sama **jika versi WAHA mendukung custom headers**. Jika tidak, gunakan reverse proxy internal untuk menambahkan autentikasi; jangan membuat webhook publik tanpa autentikasi.
