@@ -26,7 +26,7 @@ The Git-connected `main` branch deploys automatically. With Supabase deferred, q
 
 ## n8n / WAHA installation
 
-Import `workflows/mycontrol.json` as inactive; do not run old and new My Control inbound workflows concurrently.
+Import the four **inactive** files from `workflows/production/` in numeric order; see [`workflows/production/README.md`](workflows/production/README.md) for the safe Windows/Docker runbook and activation gates. Keep `workflows/mycontrol.json` as a disabled legacy backup. Never activate both old and new My Control inbound webhooks concurrently.
 
 Set n8n env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`, `N8N_WORKER_ID`, `GEMINI_PRIMARY_MODEL`, `GEMINI_FALLBACK_MODEL`. Select four actual Gemini credentials. Use model IDs available in your Google project; historical Gemini 3.5 names are no longer hardcoded as assumed available models.
 
