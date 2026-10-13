@@ -21,18 +21,40 @@ export async function POST(req: Request) {
       url.replace(/\/$/, "") + "/rest/v1/rpc/login_mycontrol",
       {
         method: "POST",
-        headers: { apikey: key, "content-type": "application/json" },
+        headers: {
+          apikey: key,
+          Authorization: "Bearer " + key,
+          "content-type": "application/json",
+        },
         body: JSON.stringify({ p_username: username, p_password: password }),
         cache: "no-store",
         signal: AbortSignal.timeout(10000),
       },
     );
     const data = await r.json();
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!r.ok || !row?.session_token)
+    if (!r.ok) {
+      if (
+        (r.status === 400 || r.status === 401) &&
+        data?.message === "Username atau password salah"
+      )
+        return Response.json(
+          { ok: false, error: "Username atau password salah" },
+          { status: 401 },
+        );
+      console.error("My Control login RPC error", {
+        status: r.status,
+        code: typeof data?.code === "string" ? data.code : "UNKNOWN",
+      });
       return Response.json(
-        { ok: false, error: "Username atau password salah" },
-        { status: 401 },
+        { ok: false, error: "Layanan login sedang bermasalah. Silakan coba lagi." },
+        { status: 503 },
+      );
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row?.session_token)
+      return Response.json(
+        { ok: false, error: "Sesi login tidak berhasil dibuat. Silakan coba lagi." },
+        { status: 503 },
       );
     const session = issueSession(row.role || "OWNER");
     return Response.json(
