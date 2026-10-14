@@ -1,0 +1,147 @@
+{
+  "name": "KENDALIKU - 04 Followup + recovery",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "AI Agent membuat followup_plan maksimal 3 item saat percakapan diproses.\nSupabase menjadwalkannya.\nPesan baru dari customer otomatis membatalkan follow-up lama.\nScheduler hanya dispatch pada jam 08:00–22:00 Asia/Jakarta.",
+        "height": 340,
+        "width": 620
+      },
+      "id": "19689e6d-a77e-468e-9ac4-5357c1d74b71",
+      "name": "D - FOLLOW-UP",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 60
+            }
+          ]
+        }
+      },
+      "id": "6791e841-e86b-44c8-ae5a-12933a70ba64",
+      "name": "Follow-up Scheduler - 60s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_dispatch_due_followups'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_limit:25}) }}"
+      },
+      "id": "16d73c77-ea4e-4a8a-a6f0-b41081e00f35",
+      "name": "Dispatch Due Follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -620,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_recover_expired_jobs'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({})}}"
+      },
+      "id": "b2e8f454-38fe-4b65-a059-5a812b9d5719",
+      "name": "Recover Expired Queue Leases",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -620,
+        2700
+      ]
+    }
+  ],
+  "connections": {
+    "Follow-up Scheduler - 60s": {
+      "main": [
+        [
+          {
+            "node": "Dispatch Due Follow-ups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Recover Expired Queue Leases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "derivedFrom": "workflows/mycontrol.json",
+    "isolation": "followup",
+    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
+    "edition": "groq-waha-2026-10-14",
+    "release": "candidate"
+  }
+}
