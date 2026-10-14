@@ -1,0 +1,347 @@
+{
+  "name": "KENDALIKU - 03 WAHA outbound + receipt",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "KENDALIKU | WAHA outbound worker. Direct WAHA HTTP API with X-Api-Key, session default, POST /api/sendText. Requires valid ACTIVE WAHA WORKING session. Ambiguous sends => UNKNOWN, do NOT blind retry.",
+        "height": 340,
+        "width": 620
+      },
+      "id": "1a2415ac-7ac8-4a66-baf7-9b646494f315",
+      "name": "C - OUTBOUND WORKER",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1700,
+        1860
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "2efe8bda-ca5f-48b8-8831-778a61a18101",
+      "name": "Outbound Queue Poll - 5s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -900,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_claim_outbound_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_worker:$env.N8N_WORKER_ID || 'n8n'}) }}"
+      },
+      "id": "0eababa3-0238-49bb-a04a-f728044768c6",
+      "name": "Claim Outbound Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -650,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9cded688-e6bc-435e-bfb8-108e97db3a31",
+              "leftValue": "={{$json.job_id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d182bf56-f3e2-4d4c-b6c8-cdb0fca0e7f0",
+      "name": "Outbound Job Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -390,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.WAHA_BASE_URL + '/api/sendText'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.WAHA_API_KEY}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({session:$env.WAHA_SESSION || 'default',chatId:$('Claim Outbound Job').first().json.chat_id,text:$('Claim Outbound Job').first().json.body}) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "226a7cdc-919e-40ac-8b50-e56b2c1be048",
+      "name": "WAHA Send Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        1980
+      ],
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_mark_outbound_sent'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_job_id:$('Claim Outbound Job').first().json.job_id,p_provider_message_id:$json.provider_message_id}) }}"
+      },
+      "id": "98dc2965-e0da-4825-9c27-63d4d96d54ed",
+      "name": "Mark Outbound SENT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        180,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job=$('Claim Outbound Job').first().json;const raw=$json??{};\nreturn [{json:{job_id:job.job_id,error_message:String(raw.error?.message??raw.message??'Unknown WAHA send result').slice(0,2000)}}];"
+      },
+      "id": "9f6dfde6-4903-4eca-ada7-d180404f4f9e",
+      "name": "WAHA Failed - Build Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        2110
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_unknown_outbound_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_job_id:$json.job_id,p_error:$json.error_message}) }}"
+      },
+      "id": "d3f1cf87-18c3-47bd-b46a-e7c49c50a594",
+      "name": "Mark Outbound UNKNOWN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        710,
+        2180
+      ]
+    },
+    {
+      "id": "542135d7-1ca7-4c70-85ba-69fb0bad65b3",
+      "name": "Validate WAHA Receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        1890
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "jsCode": "const raw=$json??{};\nconst source = raw.data ?? raw;\nconst id=source.id??source.key?.id??source.message?.id??source.messageId;\nconst messageId=typeof id==='string'?id:(id?._serialized??id?.id??'');\nif(typeof messageId!=='string'||!messageId.trim())throw new Error('WAHA receipt missing message ID - mark UNKNOWN, do not blind retry');\nreturn [{json:{provider_message_id:messageId}}];"
+      }
+    }
+  ],
+  "connections": {
+    "Outbound Queue Poll - 5s": {
+      "main": [
+        [
+          {
+            "node": "Claim Outbound Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Outbound Job": {
+      "main": [
+        [
+          {
+            "node": "Outbound Job Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbound Job Found?": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "WAHA Send Text": {
+      "main": [
+        [
+          {
+            "node": "Validate WAHA Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA Failed - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Failed - Build Retry": {
+      "main": [
+        [
+          {
+            "node": "Mark Outbound UNKNOWN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate WAHA Receipt": {
+      "main": [
+        [
+          {
+            "node": "Mark Outbound SENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA Failed - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "derivedFrom": "workflows/mycontrol.json",
+    "isolation": "outbound",
+    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
+    "edition": "groq-waha-2026-10-14",
+    "release": "candidate"
+  }
+}
