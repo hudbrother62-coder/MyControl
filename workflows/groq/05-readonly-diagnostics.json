@@ -1,0 +1,172 @@
+{
+  "name": "KENDALIKU - 05 Diagnosis WAHA and Supabase (read only)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual-diagnostic",
+      "name": "Manual diagnostic",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "waha-session-check",
+      "name": "WAHA Session Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.WAHA_BASE_URL + '/api/sessions/' + ($env.WAHA_SESSION || 'default')}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.WAHA_API_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "waha-result",
+      "name": "WAHA Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const raw=$json??{};\nconst status=String(raw.status??'');\nreturn [{json:{waha_reachable:!raw.error && Boolean(raw.name || status),waha_working:status==='WORKING',session:raw.name??'default',status:status || 'ERROR_OR_NOT_FOUND',hint:raw.error?.message??raw.message??''}}];"
+      }
+    },
+    {
+      "id": "supabase-knowledge-check",
+      "name": "Supabase Knowledge Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/mc_runtime_knowledge?select=source_key&limit=1'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer '+$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "diagnostic-summary",
+      "name": "Diagnostic Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const w=$('WAHA Result').first().json;const s=$json??{};\nconst supabaseOk=!s.error&&!s.message;\nreturn [{json:{waha:w, supabase_service_role_read_ok:supabaseOk, hint:s.error?.message??s.message??'', advisory:'Read only. Tidak membuktikan WhatsApp terkirim, AI berjalan, atau dashboard sinkron. Test end-to-end tetap diperlukan.'}}];"
+      }
+    },
+    {
+      "id": "info",
+      "name": "INFO",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -70
+      ],
+      "parameters": {
+        "content": "CHECK ONLY. Tidak mengirim pesan dan tidak mengubah database. WAHA harus WORKING; Supabase PostgREST harus dapat dibaca. Semua key lewat n8n environment; jangan taruh key di JSON.",
+        "height": 220,
+        "width": 490
+      }
+    }
+  ],
+  "connections": {
+    "Manual diagnostic": {
+      "main": [
+        [
+          {
+            "node": "WAHA Session Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Session Check": {
+      "main": [
+        [
+          {
+            "node": "WAHA Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Result": {
+      "main": [
+        [
+          {
+            "node": "Supabase Knowledge Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Knowledge Check": {
+      "main": [
+        [
+          {
+            "node": "Diagnostic Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "edition": "groq-waha-2026-10-14",
+    "activation": "No publish needed; run manually."
+  }
+}
