@@ -17,7 +17,6 @@ import {
   Bell,
   Send,
   Users,
-  MoreHorizontal,
   LogOut,
   Sun,
   Moon,
@@ -30,6 +29,8 @@ const nav = [
   ["/inbox", "Inbox", MessageSquareText],
   ["/contacts", "Kontak", Users],
   ["/crm", "CRM", KanbanSquare],
+  ["/control", "Kontrol", Settings],
+  ["/sales", "Sales", KanbanSquare],
   ["/orders", "Orders", ReceiptText],
   ["/payments", "Payments", ShieldCheck],
   ["/products", "Products", Package],
@@ -40,7 +41,6 @@ const nav = [
 ] as const;
 
 export default function Shell({ children }: { children: React.ReactNode }) {
-  const [more, setMore] = useState(false);
   const [dark, setDark] = useState(false);
   const [waha, setWaha] = useState(false);
   const path = usePathname();
@@ -162,34 +162,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
-      {more && (
-        <div className="mobileMore card">
-          <div className="sectionTitle">
-            <b>Menu lainnya</b>
-            <button className="btn" onClick={() => setMore(false)}>
-              Tutup
-            </button>
-          </div>
-          {nav
-            .filter(
-              ([href]) => !["/", "/campaigns", "/inbox", "/crm"].includes(href),
-            )
-            .map(([href, label, Icon]) => (
-              <Link key={href} href={href} onClick={() => setMore(false)}>
-                <Icon size={18} />
-                {label}
-              </Link>
-            ))}
-        </div>
-      )}
-      <div className="mobileNav">
+      <nav className="mobileNav" aria-label="Navigasi utama">
         {nav
           .filter(([href]) =>
-            ["/", "/campaigns", "/inbox", "/crm"].includes(href),
+            ["/", "/campaigns", "/inbox", "/crm", "/control"].includes(href),
           )
           .map(([href, label, Icon]) => (
             <Link
-              className={path === href ? "active" : ""}
+              className={path === href || (href === "/control" && !["/", "/campaigns", "/inbox", "/crm"].includes(path)) ? "active" : ""}
               key={href}
               href={href}
             >
@@ -197,15 +177,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               {label}
             </Link>
           ))}
-        <button
-          className={more ? "active" : ""}
-          onClick={() => setMore(!more)}
-          aria-expanded={more}
-        >
-          <MoreHorizontal />
-          <span>Lainnya</span>
-        </button>
-      </div>
+
+      </nav>
     </div>
   );
 }
