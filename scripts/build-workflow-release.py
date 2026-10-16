@@ -8,7 +8,7 @@ for i,f in enumerate(files):
  def rewrite(value):
   if isinstance(value,str):
    for old,new in names.items():
-    for a,b in [("$('"+old+"')","$('"+new+"')"),('$node["'+old+'"]','$node["'+new+'"]')]:value=value.replace(a,b)
+    for a,b in [('$("'+old+'")','$("'+new+'")'),("$('"+old+"')","$('"+new+"')"),('$node["'+old+'"]','$node["'+new+'"]')]:value=value.replace(a,b)
    return value
   if isinstance(value,list):return [rewrite(v)for v in value]
   if isinstance(value,dict):return {k:rewrite(v)for k,v in value.items()}

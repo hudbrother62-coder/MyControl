@@ -36,3 +36,17 @@ test('trigger body supports inbound messages and delivery events without request
  const msg=run({event:'message',payload:{id:'m1',from:'628111111111@c.us',body:'halo',fromMe:false}});assert.equal(msg.valid,true);assert.equal(msg.message_text,'halo');assert.equal(msg.is_ack,false);
  const ack=run({event:'message.ack',payload:{id:'m1',ack:3}});assert.equal(ack.is_ack,true);assert.equal(ack.ack,3);assert.equal(ack.ack_provider_id,'m1');
 });
+
+test('AI commit forwards claim attempt from current decision item',()=>{
+ const input={attempt_count:2,job_id:'job',decision:{should_reply:true},model_used:'model',slot_used:1,chat_id:'test@lid',reply:'Halo'};
+ const body=nodes.get('02 | Commit AI Decision + Schedule Follow-ups').parameters.body;
+ const result=JSON.parse(vm.runInNewContext('('+body.replace(/^=\{\{/,'').replace(/\}\}\s*$/,'')+')',{$json:input}));
+ assert.equal(result.p_claim_attempt,2);assert.equal(result.p_job_id,'job');assert.equal(result.p_reply,'Halo');
+});
+
+test('every quoted node reference in release resolves',()=>{
+ for(const n of w.nodes)for(const value of Object.values(n.parameters)){
+  const serialized=typeof value==='string'?value:JSON.stringify(value);
+  for(const m of serialized.matchAll(/\$\((["'])(.*?)\1\)/g))assert.ok(nodes.has(m[2]),n.name+': '+m[2]);
+ }
+});

@@ -616,7 +616,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({p_claim_attempt:$(\"Prepare Agent Input\").first().json.attempt_count,p_job_id:$json.job_id,p_decision:$json.decision,p_model_used:$json.model_used,p_slot_used:$json.slot_used,p_chat_id:$json.chat_id,p_reply:$json.reply}) }}"
+        "body": "={{ JSON.stringify({p_claim_attempt:$json.attempt_count,p_job_id:$json.job_id,p_decision:$json.decision,p_model_used:$json.model_used,p_slot_used:$json.slot_used,p_chat_id:$json.chat_id,p_reply:$json.reply}) }}"
       },
       "id": "79a1167a-3b06-4783-8fdc-fdc68d88ad4a",
       "name": "Commit AI Decision + Schedule Follow-ups",
