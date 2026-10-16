@@ -13,6 +13,7 @@ test.before(async () => {
     "002_reliability",
     "003_business_sync",
     "005_campaigns",
+    "008_contact_exclusions",
   ])
     await db.exec(
       fs

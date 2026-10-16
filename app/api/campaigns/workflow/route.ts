@@ -6,7 +6,9 @@ export async function GET(req: Request) {
     authorize(req);
     const kind = new URL(req.url).searchParams.get("kind");
     const filename =
-      kind === "ai"
+      kind === "all"
+        ? "../release/Kendaliku_MyControl_v3_All_In_One.json"
+        : kind === "ai"
         ? "02-ai-worker.json"
         : kind === "followup"
           ? "04-followup.json"
@@ -20,7 +22,7 @@ export async function GET(req: Request) {
     return new Response(body, {
       headers: {
         "content-type": "application/json",
-        "content-disposition": `attachment; filename="${filename}"`,
+        "content-disposition": `attachment; filename="${path.basename(filename)}"`,
         "cache-control": "no-store",
       },
     });

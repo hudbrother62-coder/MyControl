@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "AI Agent adalah otak sales.\nSupabase = memory/source of truth.\nTools hanya READ-ONLY: Products, FAQ, Promotions + Think.\n\nFallback:\nSlot 1 Flash \u2192 Slot 2 Flash \u2192 Slot 3 Flash \u2192 Flash-Lite.\nJika semua gagal: AI job RETRY/FAILED, inbound tetap aman.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
+        "content": "AI Agent adalah otak sales.\nSupabase = memory/source of truth.\nTools hanya READ-ONLY: Products, FAQ, Promotions + Think.\n\nFallback:\nSlot 1 Flash → Slot 2 Flash → Slot 3 Flash → Flash-Lite.\nJika semua gagal: AI job RETRY/FAILED, inbound tetap aman.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
         "height": 480,
         "width": 640
       },
@@ -352,6 +352,10 @@
             {
               "name": "select",
               "value": "source_key,payload"
+            },
+            {
+              "name": "limit",
+              "value": "50"
             }
           ]
         },
@@ -397,6 +401,10 @@
             {
               "name": "select",
               "value": "source_key,payload"
+            },
+            {
+              "name": "limit",
+              "value": "50"
             }
           ]
         },
@@ -442,6 +450,10 @@
             {
               "name": "select",
               "value": "source_key,payload"
+            },
+            {
+              "name": "limit",
+              "value": "50"
             }
           ]
         },
@@ -813,6 +825,58 @@
         -1100,
         850
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_ai_exclusion_preflight'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_job_id:$('Claim AI Job').first().json.job_id,p_attempt:$('Claim AI Job').first().json.attempt_count})}}"
+      },
+      "id": "3e02025b-672e-4422-b78d-ef5d8c4c8fa9",
+      "name": "Check Web Contact Exclusion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -350,
+        600
+      ],
+      "retryOnFail": false
+    },
+    {
+      "id": "853a9adf-3cd9-4bdd-b7bf-a74082363a3a",
+      "name": "Allow CS Automation Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        600
+      ],
+      "parameters": {
+        "jsCode": "return $json.allowed===true?[{json:$('Claim AI Job').first().json}]:[];"
+      }
     }
   ],
   "connections": {
@@ -842,7 +906,7 @@
       "main": [
         [
           {
-            "node": "Load Supabase Memory + Knowledge",
+            "node": "Check Web Contact Exclusion",
             "type": "main",
             "index": 0
           }
@@ -1292,6 +1356,28 @@
           }
         ]
       ]
+    },
+    "Check Web Contact Exclusion": {
+      "main": [
+        [
+          {
+            "node": "Allow CS Automation Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allow CS Automation Only": {
+      "main": [
+        [
+          {
+            "node": "Load Supabase Memory + Knowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1305,6 +1391,7 @@
     "isolation": "ai",
     "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
     "provider": "Groq, configure groqApi credentials and available GROQ_MODEL before activation",
-    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n"
+    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n",
+    "version": "web-exclusions-v3"
   }
 }

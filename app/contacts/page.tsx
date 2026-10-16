@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import ContactExclusions from "@/components/ContactExclusions";
 import { useMemo, useState } from "react";
 import { campaignRequest, parseContacts } from "@/lib/campaigns";
 import { useCampaignData } from "@/components/useCampaignData";
@@ -20,7 +21,7 @@ export default function Contacts() {
     [show, setShow] = useState(false);
   const contacts = data?.contacts || [];
   const eligible = useMemo(
-    () => contacts.filter((c: any) => c.consent && !c.opted_out_at).length,
+    () => contacts.filter((c: any) => c.consent && !c.opted_out_at && !c.exclusion).length,
     [contacts],
   );
   function parse(text = raw) {
@@ -87,6 +88,7 @@ export default function Contacts() {
   }
   return (
     <>
+      <ContactExclusions/>
       <div className="pageHead">
         <div>
           <h1>Kontak</h1>
@@ -250,10 +252,10 @@ export default function Contacts() {
                 <td>
                   <span
                     className={
-                      "badge " + (c.consent && !c.opted_out_at ? "ok" : "warn")
+                      "badge " + (c.consent && !c.opted_out_at && !c.exclusion ? "ok" : "warn")
                     }
                   >
-                    {c.opted_out_at
+                    {c.exclusion ? "Dikecualikan" : c.opted_out_at
                       ? "Berhenti"
                       : c.consent
                         ? "Diizinkan"

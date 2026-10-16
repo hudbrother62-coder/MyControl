@@ -757,7 +757,8 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Asia/Jakarta"
+    "timezone": "Asia/Jakarta",
+    "saveDataSuccessExecution": "none"
   },
   "active": false,
   "meta": {
@@ -765,7 +766,7 @@
     "derivedFrom": "workflows/mycontrol.json",
     "isolation": "outbound",
     "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
-    "version": "campaign-v2",
+    "version": "web-exclusions-v3",
     "controlConfig": "006_web_controls; owner web controls, credentials remain n8n"
   }
 }

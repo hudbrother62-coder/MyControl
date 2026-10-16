@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "AI Agent membuat followup_plan maksimal 3 item saat percakapan diproses.\nSupabase menjadwalkannya.\nPesan baru dari customer otomatis membatalkan follow-up lama.\nScheduler hanya dispatch pada jam 08:00\u201322:00 Asia/Jakarta.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
+        "content": "AI Agent membuat followup_plan maksimal 3 item saat percakapan diproses.\nSupabase menjadwalkannya.\nPesan baru dari customer otomatis membatalkan follow-up lama.\nScheduler hanya dispatch pada jam 08:00–22:00 Asia/Jakarta.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
         "height": 340,
         "width": 640
       },
@@ -231,7 +231,8 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Asia/Jakarta"
+    "timezone": "Asia/Jakarta",
+    "saveDataSuccessExecution": "none"
   },
   "active": false,
   "meta": {
@@ -239,6 +240,7 @@
     "derivedFrom": "workflows/mycontrol.json",
     "isolation": "followup",
     "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
-    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n"
+    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n",
+    "version": "web-exclusions-v3"
   }
 }

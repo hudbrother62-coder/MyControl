@@ -26,7 +26,7 @@ export default function CampaignEditor({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const contacts = (data?.contacts || []).filter(
-    (c: any) => c.consent && !c.opted_out_at,
+    (c: any) => c.consent && !c.opted_out_at && !c.exclusion,
   );
   const visible = contacts.filter((c: any) =>
     (c.name + " " + c.phone + " " + c.tags)

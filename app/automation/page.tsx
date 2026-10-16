@@ -86,6 +86,7 @@ export default function Automation() {
   }
   return (
     <>
+      <div className="notice section"><a className="btn" href="/api/campaigns/workflow?kind=all">Unduh workflow lengkap v3</a> <a className="btn" href="/contacts#pengecualian">Kontak yang dikecualikan</a></div>
       <div className="pageHead">
         <div>
           <h1>Kontrol Bot & Workflow</h1>

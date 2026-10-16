@@ -12,11 +12,13 @@ export async function GET(req: Request) {
     const q = new URL(req.url).searchParams;
     const view = q.get("view");
     const offset=Math.max(0,Math.min(100000,Number(q.get("offset"))||0));
+    if(view==='exclusions')return Response.json({exclusions:await db('mc_contact_exclusions?select=phone,scope,reason,updated_at&order=updated_at.desc,phone&limit=50&offset='+offset)});
     if (view === "contacts" || view === "selection") {
       const search = (q.get("q") || "").replace(/[%_*,().]/g, "").slice(0, 80);
+      if(view==='selection')return Response.json(await rpc('mc_campaign_contact_selection',{p_search:search}));
       const rows=await db(
-          "mc_campaign_contacts?select="+(view==='selection'?'phone':'phone,name,tags,consent,opted_out_at,created_at')+"&order=created_at.desc,phone&limit="+(view==='selection'?1000:50)+"&offset=" +
-            (view==='selection'?0:offset) + (view==='selection'?'&consent=eq.true&opted_out_at=is.null':'')+
+          "mc_campaign_contacts?select="+'phone,name,tags,consent,opted_out_at,created_at'+"&order=created_at.desc,phone&limit="+50+"&offset=" +
+            offset + ''+
             (search
               ? "&or=(name.ilike.*" +
                 encodeURIComponent(search) +
@@ -27,7 +29,8 @@ export async function GET(req: Request) {
                 "*)"
               : ""),
         );
-      return Response.json(view==='selection'?{phones:rows.map((c:any)=>c.phone)}:{contacts:rows});
+      const exclusions=rows.length?await db('mc_contact_exclusions?select=phone,scope&phone=in.('+rows.map((c:any)=>c.phone).join(',')+')&limit=50'):[];
+      return Response.json({contacts:rows.map((c:any)=>({...c,exclusion:exclusions.find((e:any)=>e.phone===c.phone)?.scope||null}))});
     }
     if (view === "detail") {
       const id = uuid(q.get("id"));
@@ -67,6 +70,10 @@ export async function POST(req: Request) {
     if (raw.length > 2_000_000)
       return Response.json({ error: "Data terlalu besar" }, { status: 413 });
     const b = JSON.parse(raw);
+    if(b.action==='exclusion'){
+      if(b.scope!==null&&!['PROMOTION','ALL_AUTOMATION'].includes(b.scope))throw new Error('Jenis pengecualian tidak valid');
+      return Response.json(await rpc('mc_set_contact_exclusion',{p_phone:normalizePhone(b.phone),p_scope:b.scope,p_reason:String(b.reason||'').slice(0,500)}));
+    }
     if (b.action === "import") {
       if (!Array.isArray(b.contacts) || b.contacts.length > 1000)
         throw new Error("Maksimal 1000 kontak");

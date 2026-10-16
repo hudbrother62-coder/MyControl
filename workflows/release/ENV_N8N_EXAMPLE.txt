@@ -1,0 +1,14 @@
+# Contoh nama environment. Isi melalui konfigurasi server n8n, bukan frontend.
+SUPABASE_URL=https://vpneonfehqfsxclqcman.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=ISI_DI_SERVER
+WAHA_BASE_URL=http://waha:3000
+WAHA_API_KEY=ISI_DI_SERVER
+WAHA_SESSION=default
+N8N_WORKER_ID=kendaliku-v3-01
+GROQ_MODEL=ISI_MODEL_YANG_TERSEDIA_DI_AKUN_GROQ
+WAHA_VIDEO_VERIFIED=false
+
+# Nilai http://waha:3000 hanya cocok jika kedua container satu Docker network.
+# Bila n8n dan WAHA berbeda host, gunakan URL yang dapat dijangkau server n8n.
+# Credential Groq dan Header Auth webhook dipilih dalam editor credentials n8n.
+# Simpan service-role key juga di Vercel untuk akses database dari web.
