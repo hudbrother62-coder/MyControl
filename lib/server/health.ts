@@ -8,14 +8,14 @@ async function check(url: string, headers: Record<string, string> = {}) {
   if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
 }
-export async function health() {
+export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
   const result: Record<string, any> = {};
   const config = await rpc("mc_read_web_controls").catch(() => null);
   const wahaUrl = config?.settings?.waha_base_url || process.env.WAHA_BASE_URL;
   const n8nUrl = config?.settings?.n8n_base_url || process.env.N8N_BASE_URL;
 
   await Promise.all(
-    ["DATABASE", "WAHA", "N8N", "TELEGRAM"].map(async (name) => {
+    names.map(async (name) => {
       try {
         let detail: any;
         if (name === "DATABASE")
@@ -24,9 +24,9 @@ export async function health() {
           if (!wahaUrl || !process.env.WAHA_API_KEY)
             throw new Error("Belum dikonfigurasi");
           detail = await check(
-            wahaUrl.replace(/\/$/, "") +
+            wahaUrl.trim().replace(/\/+$/, "") +
               "/api/sessions/" +
-              encodeURIComponent(process.env.WAHA_SESSION || "default"),
+              encodeURIComponent((process.env.WAHA_SESSION || "default").trim()),
             { "X-Api-Key": process.env.WAHA_API_KEY },
           );
           if (detail.status !== "WORKING")
@@ -34,7 +34,7 @@ export async function health() {
         }
         if (name === "N8N") {
           if (!n8nUrl) throw new Error("Belum dikonfigurasi");
-          detail = await check(n8nUrl.replace(/\/$/, "") + "/healthz");
+          detail = await check(n8nUrl.trim().replace(/\/+$/, "") + "/healthz");
         }
         if (name === "TELEGRAM") {
           if (!process.env.TELEGRAM_BOT_TOKEN)
@@ -52,7 +52,7 @@ export async function health() {
           detail:
             name === "WAHA"
               ? {
-                  session: process.env.WAHA_SESSION || "default",
+                  session: (process.env.WAHA_SESSION || "default").trim(),
                   status: detail.status,
                 }
               : undefined,

@@ -7,6 +7,7 @@ const stages: Record<string, string> = {
   NEW: "Baru",
   INTERESTED: "Tertarik",
   FOLLOW_UP: "Follow-up",
+  PENDING: "Perlu informasi",
   AWAITING_PAYMENT: "Menunggu pembayaran",
   WON: "Menang",
   LOST: "Tidak lanjut",
@@ -155,7 +156,7 @@ export default function CRM() {
             <article className="card" key={o.id}>
               <div className="sectionTitle">
                 <h2>{o.display_name || o.chat_id.split("@")[0]}</h2>
-                <span className="badge">{stages[o.stage]}</span>
+                <span className="badge">{stages[o.stage] || o.stage}</span>
               </div>
               <p>{o.product_id}</p>
               <p className="muted">
@@ -188,8 +189,7 @@ export default function CRM() {
             <strong>
               {loading ? "Memuat CRM…" : "Belum ada peluang pada tahap ini"}
             </strong>
-            Peluang per produk terbentuk ketika kampanye dimulai. Pipeline lama
-            tetap tersedia.
+            Peluang terbentuk dari minat produk dalam percakapan atau kampanye.
           </div>
         )}
       </div>

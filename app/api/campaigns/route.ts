@@ -43,11 +43,12 @@ export async function GET(req: Request) {
       return Response.json({ campaign: campaign[0], recipients, jobs, audit });
     }
     if (view === "crm"){
-      const stage=q.get('stage');if(stage&&!['NEW','INTERESTED','FOLLOW_UP','AWAITING_PAYMENT','WON','LOST'].includes(stage))throw new Error('Tahap tidak valid');
+      const stage=q.get('stage');if(stage&&!['NEW','INTERESTED','FOLLOW_UP','PENDING','AWAITING_PAYMENT','WON','LOST'].includes(stage))throw new Error('Tahap tidak valid');
       const rows=await db('mc_opportunities?select=id,chat_id,product_id,stage,note,next_followup_at,updated_at&order=updated_at.desc,id&limit=50&offset='+offset+(stage?'&stage=eq.'+stage:''));
       const phones=rows.map((o:any)=>o.chat_id.split('@')[0]).filter((p:string)=>/^[0-9]+$/.test(p));
+      const leads=rows.length?await db('mc_lead_state?select=chat_id,display_name&chat_id=in.('+rows.map((o:any)=>encodeURIComponent(o.chat_id)).join(',')+')&limit=50'):[];
       const contacts=phones.length?await db('mc_campaign_contacts?select=phone,name&phone=in.('+phones.join(',')+')&limit=50'):[];
-      return Response.json({opportunities:rows.map((o:any)=>({...o,display_name:contacts.find((c:any)=>c.phone===o.chat_id.split('@')[0])?.name})),stages:(await rpc('mc_dashboard_summary')).crm_stages});
+      return Response.json({opportunities:rows.map((o:any)=>({...o,display_name:leads.find((l:any)=>l.chat_id===o.chat_id)?.display_name||contacts.find((c:any)=>c.phone===o.chat_id.split('@')[0])?.name})),stages:(await rpc('mc_dashboard_summary')).crm_stages});
     }
     const [campaigns, runtime, products] = await Promise.all([
       rpc("mc_campaign_list",{p_offset:offset}),
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
           "NEW",
           "INTERESTED",
           "FOLLOW_UP",
+          "PENDING",
           "AWAITING_PAYMENT",
           "WON",
           "LOST",

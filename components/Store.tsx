@@ -72,6 +72,10 @@ export type Product = {
   promoPrice: number;
   status: "ACTIVE" | "INACTIVE" | "DRAFT";
   description: string;
+  fullDescription?: string;
+  benefits?: string;
+  demoUrl?: string;
+  checkoutUrl?: string;
 };
 export type Message = {
   id: string;
@@ -215,7 +219,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         needs("products") ? supabase
           .from("products")
           .select(
-            "id,name,status,base_price,cost_hpp,promo_price,short_description",
+            "id,name,status,base_price,cost_hpp,promo_price,short_description,full_description,benefits,demo_url,checkout_url",
           )
           .order("name").range(path==="/products"?page*PAGE_SIZE:0,path==="/products"?(page+1)*PAGE_SIZE-1:199) : empty,
         needs("leads") ? supabase
@@ -281,6 +285,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           cost: Number(r.cost_hpp || 0),
           promoPrice: Number(r.promo_price || 0),
           description: r.short_description || "",
+          fullDescription:r.full_description||"",benefits:r.benefits||"",demoUrl:r.demo_url||"",checkoutUrl:r.checkout_url||"",
         })),
         leads: [
           ...inbox.leads,
@@ -588,6 +593,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 promo_price: v.promoPrice,
                 status: v.status,
                 short_description: v.description,
+                full_description:v.fullDescription||"",benefits:v.benefits||"",demo_url:v.demoUrl||"",checkout_url:v.checkoutUrl||"",
                 source: "WEB",
               }),
           );
@@ -597,6 +603,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateProduct: (id, p) =>
         run(async () => {
           const patch: any = {};
+          for(const [key,column] of [["fullDescription","full_description"],["benefits","benefits"],["demoUrl","demo_url"],["checkoutUrl","checkout_url"]] as const)if(p[key]!==undefined)patch[column]=p[key];
           if (p.name !== undefined) patch.name = p.name;
           if (p.price !== undefined) patch.base_price = p.price;
           if (p.cost !== undefined) patch.cost_hpp = p.cost;

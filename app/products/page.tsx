@@ -13,27 +13,28 @@ export default function Products() {
     price: "",
     cost: "",
     promoPrice: "",
-    description: "",
+    description: "",fullDescription:"",benefits:"",demoUrl:"",checkoutUrl:"",
   });
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!f.name) return;
-    s.addProduct({
+    const payload={
       id: f.id || undefined,
       name: f.name,
       price: Number(f.price) || 0,
       cost: Number(f.cost) || 0,
       promoPrice: Number(f.promoPrice) || 0,
-      status: "ACTIVE",
-      description: f.description,
-    });
+      status: s.products.find(p=>p.id===f.id)?.status || "ACTIVE" as const,
+      description: f.description,fullDescription:f.fullDescription,benefits:f.benefits,demoUrl:f.demoUrl,checkoutUrl:f.checkoutUrl,
+    };
+    if(f.id&&s.products.some(p=>p.id===f.id))s.updateProduct(f.id,payload);else s.addProduct(payload);
     setF({
       id: "",
       name: "",
       price: "",
       cost: "",
       promoPrice: "",
-      description: "",
+      description: "",fullDescription:"",benefits:"",demoUrl:"",checkoutUrl:"",
     });
     setShow(false);
   }
@@ -41,10 +42,9 @@ export default function Products() {
     <>
       <div className="pageHead">
         <div>
-          <h1>Products</h1>
+          <h1>Produk & Pengetahuan AI</h1>
           <p>
-            Edit cepat dari web; Google Sheets tetap master eksternal untuk
-            integrasi n8n.
+            Kelola pengetahuan resmi AI di sini. Perubahan tersimpan langsung ke database; spreadsheet menjadi referensi pengisian.
           </p>
         </div>
         <div className="actions">
@@ -56,6 +56,7 @@ export default function Products() {
           </button>
         </div>
       </div>
+      <div className="notice section">AI membaca deskripsi, penjelasan lengkap, manfaat, dan link resmi. Harga 0 dianggap belum diisi, bukan gratis. Isi hanya informasi yang sudah dipastikan. Perubahan di spreadsheet tidak otomatis masuk web.</div>
       {show && (
         <form className="card formGrid sectionless" onSubmit={submit}>
           <input
@@ -97,6 +98,7 @@ export default function Products() {
             value={f.description}
             onChange={(e) => setF({ ...f, description: e.target.value })}
           />
+          {([['fullDescription','Penjelasan lengkap: cocok untuk siapa, cara kerja, batasan'],['benefits','Manfaat terverifikasi dan jawaban keberatan'],['demoUrl','Link demo resmi (kosongkan jika belum ada)'],['checkoutUrl','Link pembelian resmi']] as const).map(([key,label])=><label className="fieldLabel span2" key={key}>{label}{key.endsWith('Url')?<input className="input" type="url" value={f[key]} onChange={e=>setF({...f,[key]:e.target.value})}/>:<textarea className="input" rows={4} value={f[key]} onChange={e=>setF({...f,[key]:e.target.value})}/>}</label>)}
           <div className="actions span2">
             <button className="btn primary">Simpan</button>
             <button
@@ -148,6 +150,7 @@ export default function Products() {
                   </button>
                 </td>
                 <td>
+                  <button className="btn" onClick={()=>{setF({id:p.id,name:p.name,price:String(p.price),cost:String(p.cost),promoPrice:String(p.promoPrice),description:p.description,fullDescription:p.fullDescription||"",benefits:p.benefits||"",demoUrl:p.demoUrl||"",checkoutUrl:p.checkoutUrl||""});setShow(true)}}>Edit pengetahuan</button>
                   <button
                     className="linkBtn dangerText"
                     onClick={() => s.deleteProduct(p.id)}
