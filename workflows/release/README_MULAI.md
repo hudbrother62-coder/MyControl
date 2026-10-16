@@ -1,4 +1,4 @@
-# KENDALIKU / MY CONTROL v3
+# KENDALIKU / MY CONTROL v4 — WAHA Trigger
 
 Paket workflow bot CS, kampanye WhatsApp, CRM per kontak/produk, memori percakapan, balasan manual, takeover, follow-up, teks/video, delivery receipt dan pengecualian kontak dari web.
 
@@ -35,9 +35,18 @@ Secrets tidak disertakan dalam JSON. Simpan melalui konfigurasi server/credentia
 
 Di empat node `Groq ... Credential`, pilih credential Groq milikmu. Satu credential boleh dipakai pada semua slot, tetapi itu bukan tambahan kuota. Slot fallback membantu kegagalan sementara, bukan menghindari batas provider. Web → Automation mengatur model dan instruksi bot.
 
-Pada node `01 | WAHA Incoming Webhook`, pasang Header Auth credential bernama header `X-MyControl-Secret` dengan nilai rahasia buatanmu. Konfigurasikan WAHA/reverse proxy mengirim header yang sama. JSON sengaja tidak membawa credential ID atau secret.
+## WAHA Trigger
 
-URL webhook produksi: `https://DOMAIN-N8N/webhook/mycontrol/waha/inbound`. WAHA berlangganan event `message` dan `message.ack`; jangan subscribe `message.any` bersamaan dengan `message` tanpa kebutuhan. From-me/group disaring. ID pesan dideduplikasi database.
+File utama kini memakai node resmi **WAHA Trigger** (`@devlikeapro/n8n-nodes-waha.wahaTrigger`, typeVersion 202502, paket sumber 2025.2.9), bukan node Webhook generik.
+
+1. n8n → Settings → Community Nodes → pasang `@devlikeapro/n8n-nodes-waha` jika belum tersedia.
+2. Impor file utama, buka node **01 | WAHA Trigger**, salin **Production URL**.
+3. Tempel URL itu ke konfigurasi webhook session WAHA; pilih event **message** dan **message.ack**. Trigger ini tetap menerima event melalui URL tersebut; session tidak tersambung otomatis hanya karena file diimpor.
+4. Keluaran message (index 1) dan message.ack (index 4) sudah tersambung ke normalisasi. message.any tidak disambungkan untuk menghindari dua rute pesan yang sama. Pesan tetap dideduplikasi oleh ID di database.
+5. WAHA Trigger merespons otomatis saat menerima request. Tidak ada node Respond to Webhook dalam file utama. Konsekuensinya ACK tidak menunggu persist database; pantau failed executions agar kegagalan penyimpanan bisa ditangani.
+6. Node resmi versi ini tidak menyediakan Header Auth. Batasi akses URL trigger ke WAHA melalui jaringan privat/reverse proxy yang memverifikasi pengirim. Header Auth generik dari file sebelumnya tidak berlaku pada trigger ini.
+
+Versi modular di folder modular masih memakai Webhook generik lama dengan Header Auth. Untuk permintaan ini, gunakan hanya file utama WAHA Trigger; jangan impor/aktifkan versi modular bersamaan.
 
 ## Kontrol dari web
 
@@ -52,7 +61,7 @@ URL webhook produksi: `https://DOMAIN-N8N/webhook/mycontrol/waha/inbound`. WAHA 
 
 ## Empat jalur dalam satu canvas
 
-1. **01 Pesan masuk** — autentikasi → normalisasi → dedupe/persist → ACK cepat. Receipt delivery menuju pencatat delivery, tidak memanggil AI.
+1. **01 Pesan masuk** — WAHA Trigger → ACK otomatis → normalisasi → dedupe/persist. Receipt delivery menuju pencatat delivery, tidak memanggil AI.
 2. **02 Bot CS** — baca kontrol web → claim satu job → cek pengecualian → konteks 30 pesan + memori + produk/kampanye/CRM → Groq + validasi keputusan → antrekan balasan/follow-up. Produk/harga berasal dari knowledge resmi. Kesalahan model masuk retry terbatas; kebutuhan manusia masuk takeover.
 3. **03 Pengirim bersama** — baca kontrol web → cek session WAHA → heartbeat → claim satu pesan → siapkan URL video privat bila diperlukan → preflight terbaru → teks/video → receipt → SENT atau UNKNOWN. Balasan admin dan AI diprioritaskan atas kampanye. Satu kontak tidak diproses paralel.
 4. **04 Follow-up** — baca kontrol web → dispatch maksimal 25 follow-up due → pulihkan lease worker. Balasan pelanggan, opt-out, takeover dan aturan pengecualian membatalkan otomatisasi terkait.

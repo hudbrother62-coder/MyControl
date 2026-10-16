@@ -1,10 +1,10 @@
 {
-  "name": "KENDALIKU v3 - CS + Kampanye + CRM + Kontrol Web",
+  "name": "KENDALIKU v4 - WAHA Trigger + CS + Kampanye + CRM",
   "active": false,
   "nodes": [
     {
       "parameters": {
-        "content": "MY CONTROL / BANTU BERES SALES CONTROL CENTER\nSATU WORKFLOW N8N — AI AGENT\n\nZona:\nA. WAHA INBOUND → dedupe → Supabase → ACK cepat\nB. AI WORKER → 3 Gemini Flash slots → Flash-Lite fallback\nC. OUTBOUND WORKER → WAHA send → retry tanpa memanggil AI ulang\nD. FOLLOW-UP SCHEDULER → follow-up AI yang sudah direncanakan agent\n\nSebelum Publish:\n1) jalankan SQL companion;\n2) set environment variables;\n3) pilih 4 Gemini credentials/model nodes;\n4) hubungkan webhook WAHA ke Production URL;\n5) test end-to-end.",
+        "content": "## 01 · WAHA Trigger\nInstall @devlikeapro/n8n-nodes-waha. Connect message (output 1) + message.ack (output 4) → normalisasi → simpan/dedupe atau receipt. Copy Production URL ke session WAHA. Trigger memberi ACK otomatis; jangan menambahkan Respond to Webhook. Batasi akses endpoint melalui jaringan privat atau reverse proxy karena node ini tidak memiliki Header Auth.",
         "height": 460,
         "width": 700
       },
@@ -18,23 +18,18 @@
       ]
     },
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "mycontrol/waha/inbound",
-        "responseMode": "responseNode",
-        "options": {},
-        "authentication": "headerAuth"
-      },
+      "parameters": {},
       "id": "00965fdd-b8b3-5d2a-b4e1-7613979997bf",
-      "name": "01 | WAHA Incoming Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "name": "01 | WAHA Trigger",
+      "type": "@devlikeapro/n8n-nodes-waha.wahaTrigger",
+      "typeVersion": 202502,
       "position": [
         -900,
         80
       ],
-      "webhookId": "0e976366-4f15-4f0f-b2dc-43a771e744ac",
-      "notes": "Set Header Auth credential: X-MyControl-Secret. Configure identical WAHA webhook custom header. No secret in JSON."
+      "webhookId": "e7585b63-a38c-5cea-b0c6-4b7a8e8ea587",
+      "notes": "Install community node @devlikeapro/n8n-nodes-waha. Copy Production URL to WAHA session, subscribe message + message.ack. Restrict endpoint to WAHA via private network or reverse proxy; this trigger has no built-in Header Auth.",
+      "notesInFlow": true
     },
     {
       "parameters": {
@@ -125,40 +120,6 @@
       "waitBetweenTries": 5000
     },
     {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ {ok:true, accepted:true, result:$json} }}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "id": "8da8481e-31b0-5d00-b89f-292cc93eec2c",
-      "name": "01 | ACK 200 Accepted",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.4,
-      "position": [
-        160,
-        20
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ {ok:true, accepted:false, ignored:true} }}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "id": "ebb078bf-789d-53c8-a924-86242bbaaaf3",
-      "name": "01 | ACK 200 Ignored",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.4,
-      "position": [
-        -120,
-        190
-      ]
-    },
-    {
       "id": "ee97e95a-f743-5609-afd6-96ccafc45bf2",
       "name": "01 | Delivery Receipt?",
       "type": "n8n-nodes-base.if",
@@ -244,7 +205,7 @@
       "parameters": {
         "width": 700,
         "height": 200,
-        "content": "## 01 · Pesan masuk dan delivery\nWebhook → normalisasi → dedupe → simpan → ACK. Pesan masuk tetap tersimpan meski bot dikecualikan."
+        "content": "## 01 · WAHA Trigger\nInstall @devlikeapro/n8n-nodes-waha. Connect message (output 1) + message.ack (output 4) → normalisasi → simpan/dedupe atau receipt. Copy Production URL ke session WAHA. Trigger memberi ACK otomatis; jangan menambahkan Respond to Webhook. Batasi akses endpoint melalui jaringan privat atau reverse proxy karena node ini tidak memiliki Header Auth."
       }
     },
     {
@@ -1915,17 +1876,6 @@
     }
   ],
   "connections": {
-    "01 | WAHA Incoming Webhook": {
-      "main": [
-        [
-          {
-            "node": "01 | Normalize WAHA Event",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "01 | Normalize WAHA Event": {
       "main": [
         [
@@ -1946,24 +1896,12 @@
             "index": 0
           }
         ],
-        [
-          {
-            "node": "01 | ACK 200 Ignored",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "01 | Atomic Ingest + Dedupe": {
       "main": [
-        [
-          {
-            "node": "01 | ACK 200 Accepted",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "01 | Delivery Receipt?": {
@@ -1986,13 +1924,7 @@
     },
     "01 | Persist Delivery Receipt": {
       "main": [
-        [
-          {
-            "node": "01 | ACK 200 Accepted",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "02 | AI Queue Poll - 5s": {
@@ -2725,6 +2657,48 @@
           }
         ]
       ]
+    },
+    "01 | WAHA Trigger": {
+      "main": [
+        [],
+        [
+          {
+            "node": "01 | Normalize WAHA Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        [
+          {
+            "node": "01 | Normalize WAHA Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ]
     }
   },
   "settings": {
@@ -2734,7 +2708,16 @@
     "saveDataErrorExecution": "all"
   },
   "meta": {
-    "version": "web-exclusions-v3",
-    "activation": "Choose this OR the four modular workflows. Never activate both. Requires migrations through 008."
+    "version": "waha-trigger-v4",
+    "activation": "Choose this OR the four modular workflows. Never activate both. Requires migrations through 008.",
+    "requiredCommunityNodes": {
+      "@devlikeapro/n8n-nodes-waha": "2025.2.9"
+    },
+    "triggerTypeVersion": 202502,
+    "listenEvents": [
+      "message",
+      "message.ack"
+    ],
+    "security": "WAHA Trigger does not validate Header Auth. Restrict incoming access at reverse proxy/private network."
   }
 }
