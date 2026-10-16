@@ -161,15 +161,9 @@ export default function CampaignEditor({
             />
             <button
               className="btn"
-              onClick={() =>
-                setSelected(
-                  Array.from(
-                    new Set([...selected, ...visible.map((c: any) => c.phone)]),
-                  ).slice(0, 1000),
-                )
-              }
+              onClick={async()=>{try{const d=await campaignRequest(undefined,'?view=selection&q='+encodeURIComponent(search));setSelected(d.phones)}catch(e){setError((e as Error).message)}}}
             >
-              Pilih hasil filter
+              Pilih hingga 1.000 hasil
             </button>
             <button className="btn" onClick={() => setSelected([])}>
               Kosongkan
@@ -214,15 +208,15 @@ export default function CampaignEditor({
             <button
               className="btn"
               disabled={!offset}
-              onClick={() => setOffset(Math.max(0, offset - 1000))}
+              onClick={() => setOffset(Math.max(0, offset - 50))}
             >
               Sebelumnya
             </button>
-            <span>Halaman {offset / 1000 + 1}</span>
+            <span>Halaman {offset / 50 + 1}</span>
             <button
               className="btn"
-              disabled={(data?.contacts?.length || 0) < 1000}
-              onClick={() => setOffset(offset + 1000)}
+              disabled={(data?.contacts?.length || 0) < 50}
+              onClick={() => setOffset(offset + 50)}
             >
               Berikutnya
             </button>

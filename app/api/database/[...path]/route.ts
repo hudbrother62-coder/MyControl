@@ -39,8 +39,10 @@ async function proxy(
       const v = req.headers.get(h);
       if (v) headers[h] = v;
     }
+    const query=new URL(req.url).searchParams;
+    if(req.method==="GET") { const limit=Number(query.get("limit")||50); query.set("limit",String(Number.isFinite(limit)?Math.max(1,Math.min(200,limit)):50)); delete headers.range; delete headers["range-unit"]; }
     const r = await fetch(
-      url + "/rest/v1/" + path[0] + new URL(req.url).search,
+      url + "/rest/v1/" + path[0] + "?" + query.toString(),
       {
         method: req.method,
         headers,

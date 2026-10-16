@@ -12,12 +12,13 @@ const stages: Record<string, string> = {
   LOST: "Tidak lanjut",
 };
 export default function CRM() {
-  const { data, error, loading, refresh } = useCampaignData("?view=crm");
-  const { data: contacts } = useCampaignData("?view=contacts");
+
   const [filter, setFilter] = useState(""),
     [active, setActive] = useState<any>(null),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const [offset,setOffset]=useState(0);
+  const {data,error,loading,refresh}=useCampaignData('?view=crm&offset='+offset+'&stage='+filter);
   const rows = (data?.opportunities || []).filter(
     (o: any) => !filter || o.stage === filter,
   );
@@ -49,7 +50,7 @@ export default function CRM() {
       <div className="crmStageTabs">
         <button
           className={"btn " + (!filter ? "primary" : "")}
-          onClick={() => setFilter("")}
+          onClick={() => {setFilter("");setOffset(0)}}
         >
           Semua
         </button>
@@ -57,13 +58,12 @@ export default function CRM() {
           <button
             key={id}
             className={"btn " + (filter === id ? "primary" : "")}
-            onClick={() => setFilter(id)}
+            onClick={() => {setFilter(id);setOffset(0)}}
           >
             {label}{" "}
             <span className="badge">
               {
-                (data?.opportunities || []).filter((o: any) => o.stage === id)
-                  .length
+                data?.stages?.[id] || 0
               }
             </span>
           </button>
@@ -151,13 +151,10 @@ export default function CRM() {
       )}
       <div className="campaignList section">
         {rows.map((o: any) => {
-          const c = contacts?.contacts?.find(
-            (c: any) => c.phone === o.chat_id.split("@")[0],
-          );
           return (
             <article className="card" key={o.id}>
               <div className="sectionTitle">
-                <h2>{c?.name || o.chat_id.split("@")[0]}</h2>
+                <h2>{o.display_name || o.chat_id.split("@")[0]}</h2>
                 <span className="badge">{stages[o.stage]}</span>
               </div>
               <p>{o.product_id}</p>
@@ -196,6 +193,7 @@ export default function CRM() {
           </div>
         )}
       </div>
+      <div className="actions section"><button className="btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Sebelumnya</button><span>Halaman {offset/50+1}</span><button className="btn" disabled={(data?.opportunities?.length||0)<50} onClick={()=>setOffset(offset+50)}>Berikutnya</button></div>
       <p className="muted">
         Pengingat di CRM tidak otomatis mengirim pesan. Pengiriman follow-up
         mengikuti aturan bot dan izin pelanggan.

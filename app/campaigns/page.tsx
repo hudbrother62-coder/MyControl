@@ -13,9 +13,8 @@ function Detail({
   onClose: () => void;
   onChange: () => void;
 }) {
-  const { data, error, loading, refresh } = useCampaignData(
-    "?view=detail&id=" + id,
-  );
+  const [offset,setOffset]=useState(0);
+  const { data, error, loading, refresh } = useCampaignData("?view=detail&id="+id+"&offset="+offset);
   const [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [schedule, setSchedule] = useState(""),
@@ -233,6 +232,7 @@ function Detail({
           </tbody>
         </table>
       </div>
+      <div className="actions section"><button className="btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Sebelumnya</button><span>Halaman {offset/50+1}</span><button className="btn" disabled={data.recipients.length<50} onClick={()=>setOffset(offset+50)}>Berikutnya</button></div>
       <details className="section">
         <summary>Riwayat aktivitas</summary>
         {data.audit.map((a: any) => (
@@ -248,7 +248,8 @@ function Detail({
   );
 }
 export default function Campaigns() {
-  const { data, error, loading, refresh } = useCampaignData();
+  const [listOffset,setListOffset]=useState(0);
+  const { data, error, loading, refresh } = useCampaignData("?offset="+listOffset);
   const [editor, setEditor] = useState(false),
     [active, setActive] = useState("");
   const campaigns = data?.campaigns || [];
@@ -356,7 +357,7 @@ export default function Campaigns() {
                 </span>
               </div>
               <p className="muted">
-                {c.product_id} · {c.recipients} penerima · {c.steps.length}{" "}
+                {c.product_id} · {c.recipients} penerima · {c.step_count}{" "}
                 pesan
               </p>
               <div className="campaignProgress">
@@ -393,6 +394,7 @@ export default function Campaigns() {
           )}
         </div>
       )}
+      <div className="actions section"><button className="btn" disabled={!listOffset} onClick={()=>setListOffset(Math.max(0,listOffset-20))}>Sebelumnya</button><span>Halaman {listOffset/20+1}</span><button className="btn" disabled={campaigns.length<20} onClick={()=>setListOffset(listOffset+20)}>Berikutnya</button></div>
     </>
   );
 }

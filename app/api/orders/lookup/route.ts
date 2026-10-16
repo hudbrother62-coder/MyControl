@@ -1,0 +1,3 @@
+import {authorize,apiError} from '@/lib/server/session';
+import {db} from '@/lib/server/database';
+export async function GET(req:Request){try{authorize(req);const q=new URL(req.url).searchParams;const offset=Math.max(0,Math.min(100000,Number(q.get('offset'))||0));const search=(q.get('q')||'').replace(/[^a-zA-Z0-9 -]/g,'').slice(0,80);return Response.json({orders:await db('orders?select=id,order_code,total,customer:customers(name)&status=not.in.(PAID,FULFILLED,CANCELLED)&order=created_at.desc,id&limit=50&offset='+offset+(search?'&order_code=ilike.*'+encodeURIComponent(search)+'*':''))})}catch(e){return apiError(e)}}

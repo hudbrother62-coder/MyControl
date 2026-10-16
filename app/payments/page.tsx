@@ -1,5 +1,6 @@
 "use client";
-import { FormEvent, useState } from "react";
+import StorePagination from "@/components/StorePagination";
+import { FormEvent, useState, useEffect } from "react";
 import { useStore, rupiah } from "@/components/Store";
 export default function Payments() {
   const s = useStore();
@@ -10,6 +11,8 @@ export default function Payments() {
     sender: "",
     evidenceName: "",
   });
+  const [orderSearch,setOrderSearch]=useState(''),[orderOffset,setOrderOffset]=useState(0),[orderOptions,setOrderOptions]=useState<any[]>([]),[orderError,setOrderError]=useState('');
+  useEffect(()=>{if(!show)return;let active=true;const timer=setTimeout(async()=>{try{const r=await fetch('/api/orders/lookup?offset='+orderOffset+'&q='+encodeURIComponent(orderSearch));const d=await r.json();if(!r.ok)throw new Error(d.error);if(active){setOrderOptions(d.orders);setOrderError('')}}catch(e){if(active)setOrderError((e as Error).message)}},250);return()=>{active=false;clearTimeout(timer)}},[show,orderSearch,orderOffset]);
   const waiting = s.payments.filter(
     (p) => p.status !== "APPROVED" && p.status !== "REJECTED",
   ).length;
@@ -38,21 +41,21 @@ export default function Payments() {
       </div>
       <div className="grid4">
         <div className="card">
-          <div className="kpiLabel">Menunggu Review</div>
+          <div className="kpiLabel">Menunggu Review · halaman ini</div>
           <div className="kpiValue">{waiting}</div>
         </div>
         <div className="card">
-          <div className="kpiLabel">Evidence</div>
+          <div className="kpiLabel">Evidence · halaman ini</div>
           <div className="kpiValue">{s.payments.length}</div>
         </div>
         <div className="card">
-          <div className="kpiLabel">Approved</div>
+          <div className="kpiLabel">Approved · halaman ini</div>
           <div className="kpiValue">
             {s.payments.filter((p) => p.status === "APPROVED").length}
           </div>
         </div>
         <div className="card">
-          <div className="kpiLabel">Rejected</div>
+          <div className="kpiLabel">Rejected · halaman ini</div>
           <div className="kpiValue">
             {s.payments.filter((p) => p.status === "REJECTED").length}
           </div>
@@ -60,27 +63,27 @@ export default function Payments() {
       </div>
       {show && (
         <form className="card formGrid section" onSubmit={add}>
+          <input className="input" placeholder="Cari kode order" value={orderSearch} onChange={e=>{setOrderSearch(e.target.value);setOrderOffset(0)}}/>
+          {orderError&&<p className="notice">{orderError}</p>}
+          <div className="actions"><button type="button" className="btn" disabled={!orderOffset} onClick={()=>setOrderOffset(Math.max(0,orderOffset-50))}>Order sebelumnya</button><button type="button" className="btn" disabled={orderOptions.length<50} onClick={()=>setOrderOffset(orderOffset+50)}>Order berikutnya</button></div>
           <select
             className="input"
             value={f.orderId}
             onChange={(e) => {
-              const o = s.orders.find((x) => x.id === e.target.value);
+              const o = orderOptions.find((x) => x.id === e.target.value);
               setF({
                 ...f,
                 orderId: e.target.value,
                 amount: String(o?.total || 0),
-                sender: o?.customer || "",
+                sender: o?.customer?.name || "",
               });
             }}
           >
             <option value="">Pilih order</option>
-            {s.orders
-              .filter(
-                (o) => !["PAID", "FULFILLED", "CANCELLED"].includes(o.status),
-              )
+            {orderOptions
               .map((o) => (
                 <option key={o.id} value={o.id}>
-                  {o.code} · {o.customer} · {rupiah(o.total)}
+                  {o.order_code} · {o.customer?.name} · {rupiah(o.total)}
                 </option>
               ))}
           </select>
@@ -219,6 +222,7 @@ export default function Payments() {
           </div>
         )}
       </div>
+      <StorePagination/>
     </>
   );
 }

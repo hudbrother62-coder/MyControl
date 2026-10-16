@@ -1,5 +1,7 @@
 "use client";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { PAGE_SIZE, storeLoadPlan } from "@/lib/loading";
 import { supabase } from "@/lib/supabase-browser";
 
 export type LeadStatus =
@@ -113,6 +115,7 @@ type State = {
   error: string;
 };
 type Ctx = State & {
+  page: number; hasMore: boolean; setPage: (page:number)=>void;
   refresh: () => Promise<void>;
   addLead: (v: Omit<Lead, "id" | "updatedAt">) => void;
   updateLead: (id: string, p: Partial<Lead>) => void;
@@ -192,47 +195,58 @@ function jsonText(v: any, d: string) {
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [s, setS] = useState<State>(defaults);
+  const path=usePathname();
+  const [paging,setPaging]=useState({path,page:0});
+  const page=paging.path===path?paging.page:0;
+  const generation=useRef(0);
+  const activePath=useRef('');
+  const plan=storeLoadPlan(path);
+  const needs=(name:string)=>plan.includes(name);
+  const empty={data:[],error:null};
+
 
   async function refresh() {
+    const request=++generation.current;
+    if(!plan.length){setS({...defaults,loading:false});return;}
     try {
-      setS((x) => ({ ...x, loading: true, error: "" }));
+      if(activePath.current!==path+':'+page){activePath.current=path+':'+page;setS(x=>({...x,loading:true,error:''}));}
+
       const [pr, lr, or, pvr, cr, mr, sr] = await Promise.all([
-        supabase
+        needs("products") ? supabase
           .from("products")
           .select(
             "id,name,status,base_price,cost_hpp,promo_price,short_description",
           )
-          .order("name"),
-        supabase
+          .order("name").range(path==="/products"?page*PAGE_SIZE:0,path==="/products"?(page+1)*PAGE_SIZE-1:199) : empty,
+        needs("leads") ? supabase
           .from("leads")
           .select(
             "id,status,estimated_value,notes,updated_at,customer:customers(name,whatsapp_number),product:products(name)",
           )
-          .order("updated_at", { ascending: false }),
-        supabase
+          .order("updated_at", { ascending: false }).range(page*PAGE_SIZE,(page+1)*PAGE_SIZE-1) : empty,
+        needs("orders") ? supabase
           .from("orders")
           .select(
             "id,order_code,product_name,total,cost_hpp,payment_method,status,created_at,customer:customers(name,whatsapp_number)",
           )
-          .order("created_at", { ascending: false }),
-        supabase
+          .order("created_at", { ascending: false }).range(path==="/orders"?page*PAGE_SIZE:0,path==="/orders"?(page+1)*PAGE_SIZE-1:99) : empty,
+        needs("payments") ? supabase
           .from("payment_verifications")
           .select(
             "id,order_id,order_match,screenshot_match,provider_match,status,created_at,evidence:payment_evidence(extracted_amount,extracted_sender,original_filename)",
           )
-          .order("created_at", { ascending: false }),
-        supabase
+          .order("created_at", { ascending: false }).range(page*PAGE_SIZE,(page+1)*PAGE_SIZE-1) : empty,
+        needs("conversations") ? supabase
           .from("conversations")
           .select(
             "id,ai_enabled,human_takeover,updated_at,customer:customers(name,whatsapp_number),product:products(name)",
           )
-          .order("updated_at", { ascending: false }),
-        supabase
-          .from("messages")
-          .select("id,conversation_id,direction,sender_type,content,created_at")
-          .order("created_at", { ascending: true }),
-        supabase.from("bot_settings").select("key,value"),
+          .order("updated_at", { ascending: false }).range(page*PAGE_SIZE,(page+1)*PAGE_SIZE-1) : empty,
+        empty,
+        needs("settings") ? supabase.from("bot_settings").select("key,value").limit(30) : empty,
+
       ]);
+      if(request!==generation.current)return;
       const firstErr = [pr, lr, or, pvr, cr, mr, sr].find(
         (x) => x.error,
       )?.error;
@@ -241,15 +255,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Fetch only orders referenced by this verification page, including old orders.
+      if(needs("payments") && pvr.data?.length){
+        const ids=Array.from(new Set(pvr.data.map((p:any)=>p.order_id))).filter(Boolean);
+        if(ids.length){const linked=await supabase.from("orders").select("id,order_code,product_name,total,cost_hpp,payment_method,status,created_at,customer:customers(name,whatsapp_number)").in("id",ids).limit(50);
+          if(linked.error)throw new Error(linked.error.message);
+          or.data=Array.from(new Map([...(or.data||[]),...(linked.data||[])].map((o:any)=>[o.id,o])).values());
+        }
+      }
+      if(request!==generation.current)return;
       const settingsMap = Object.fromEntries(
         (sr.data || []).map((r: any) => [r.key, r.value]),
       );
-      const inboxResponse = await fetch("/api/control/inbox", {
-        cache: "no-store",
-      });
-      const inboxData = await inboxResponse.json();
-      const queueError = inboxResponse.ok ? "" : "Antrean WhatsApp belum tersedia. Data bisnis tetap ditampilkan; migrasi Supabase diperlukan.";
-      const inbox = inboxResponse.ok ? inboxData : {leads:[],conversations:[],messages:[]};
+      const inboxResponse = needs("queue") ? await fetch('/api/control/inbox?offset='+page*PAGE_SIZE,{cache:'no-store'}) : null;
+      if(request!==generation.current)return;
+      const inboxData=inboxResponse?await inboxResponse.json():null;
+      const queueError=inboxResponse&&!inboxResponse.ok?(inboxData?.error||'Antrean WhatsApp gagal dimuat'):'';
+      const inbox=inboxResponse?.ok?inboxData:{leads:[],conversations:[],messages:[]};
       setS({
         products: (pr.data || []).map((r: any) => ({
           id: r.id,
@@ -336,6 +358,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         error: queueError,
       });
     } catch (e) {
+      if(request!==generation.current)return;
       setS((x) => ({
         ...x,
         loading: false,
@@ -344,11 +367,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 15000);
-    return () => clearInterval(id);
-  }, []);
+  useEffect(()=>{
+    void refresh();
+    const onFocus=()=>{if(!document.hidden)void refresh()};
+    const id=plan.length?setInterval(onFocus,path==='/inbox'?30000:60000):null;
+    window.addEventListener('focus',onFocus);
+    return()=>{generation.current++;if(id)clearInterval(id);window.removeEventListener('focus',onFocus)};
+  },[path,page]);
+
 
   async function ensureCustomer(name: string, phone: string) {
     if (phone) {
@@ -390,6 +416,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const api = useMemo<Ctx>(
     () => ({
       ...s,
+      page,
+      setPage:(next:number)=>setPaging({path,page:Math.max(0,next)}),
+      hasMore:(path==='/orders'?s.orders:path==='/payments'?s.payments:path==='/products'?s.products:path==='/inbox'?s.conversations:s.leads).length>=PAGE_SIZE,
       refresh,
       addLead: (v) =>
         run(async () => {
@@ -682,7 +711,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         location.reload();
       },
     }),
-    [s],
+    [s,path,page],
   );
 
   return <Context.Provider value={api}>{children}</Context.Provider>;

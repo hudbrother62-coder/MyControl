@@ -11,16 +11,12 @@ export async function GET(req: Request) {
     authorize(req);
     const q = new URL(req.url).searchParams;
     const view = q.get("view");
-    if (view === "contacts") {
-      const offset = Math.max(
-        0,
-        Math.min(100000, Number(q.get("offset")) || 0),
-      );
+    const offset=Math.max(0,Math.min(100000,Number(q.get("offset"))||0));
+    if (view === "contacts" || view === "selection") {
       const search = (q.get("q") || "").replace(/[%_*,().]/g, "").slice(0, 80);
-      return Response.json({
-        contacts: await db(
-          "mc_campaign_contacts?select=*&order=created_at.desc&limit=1000&offset=" +
-            offset +
+      const rows=await db(
+          "mc_campaign_contacts?select="+(view==='selection'?'phone':'phone,name,tags,consent,opted_out_at,created_at')+"&order=created_at.desc,phone&limit="+(view==='selection'?1000:50)+"&offset=" +
+            (view==='selection'?0:offset) + (view==='selection'?'&consent=eq.true&opted_out_at=is.null':'')+
             (search
               ? "&or=(name.ilike.*" +
                 encodeURIComponent(search) +
@@ -30,50 +26,34 @@ export async function GET(req: Request) {
                 encodeURIComponent(search) +
                 "*)"
               : ""),
-        ),
-      });
+        );
+      return Response.json(view==='selection'?{phones:rows.map((c:any)=>c.phone)}:{contacts:rows});
     }
     if (view === "detail") {
       const id = uuid(q.get("id"));
-      const [campaign, recipients, jobs, audit] = await Promise.all([
-        db("mc_campaigns?id=eq." + id),
-        db(
-          "mc_campaign_recipients?campaign_id=eq." +
-            id +
-            "&order=phone&limit=1000",
-        ),
-        Promise.all(
-          [0, 1000].map((offset) =>
-            db(
-              "mc_outbound_jobs?select=id,recipient_id,chat_id,body,step_no,status,delivery_status,last_error,media_url&campaign_id=eq." +
-                id +
-                "&order=step_no,chat_id&limit=1000&offset=" +
-                offset,
-            ),
-          ),
-        ).then((x) => x.flat()),
-        db(
-          "mc_campaign_audit?campaign_id=eq." +
-            id +
-            "&order=created_at.desc&limit=30",
-        ),
+      const [campaign, recipients, audit]=await Promise.all([
+        db('mc_campaigns?id=eq.'+id),
+        db('mc_campaign_recipients?campaign_id=eq.'+id+'&order=phone&limit=50&offset='+offset),
+        db('mc_campaign_audit?campaign_id=eq.'+id+'&order=created_at.desc&limit=20')
       ]);
+      const jobs=recipients.length?await db('mc_outbound_jobs?select=id,recipient_id,step_no,status,delivery_status,last_error&recipient_id=in.('+recipients.map((r:any)=>r.id).join(',')+')&order=step_no&limit=100'):[];
       return Response.json({ campaign: campaign[0], recipients, jobs, audit });
     }
-    if (view === "crm")
-      return Response.json({
-        opportunities: await db(
-          "mc_opportunities?select=*&order=updated_at.desc&limit=1000",
-        ),
-      });
+    if (view === "crm"){
+      const stage=q.get('stage');if(stage&&!['NEW','INTERESTED','FOLLOW_UP','AWAITING_PAYMENT','WON','LOST'].includes(stage))throw new Error('Tahap tidak valid');
+      const rows=await db('mc_opportunities?select=id,chat_id,product_id,stage,note,next_followup_at,updated_at&order=updated_at.desc,id&limit=50&offset='+offset+(stage?'&stage=eq.'+stage:''));
+      const phones=rows.map((o:any)=>o.chat_id.split('@')[0]).filter((p:string)=>/^[0-9]+$/.test(p));
+      const contacts=phones.length?await db('mc_campaign_contacts?select=phone,name&phone=in.('+phones.join(',')+')&limit=50'):[];
+      return Response.json({opportunities:rows.map((o:any)=>({...o,display_name:contacts.find((c:any)=>c.phone===o.chat_id.split('@')[0])?.name})),stages:(await rpc('mc_dashboard_summary')).crm_stages});
+    }
     const [campaigns, runtime, products] = await Promise.all([
-      rpc("mc_campaign_overview"),
+      rpc("mc_campaign_list",{p_offset:offset}),
       db("mc_campaign_runtime?select=*"),
       db(
-        "mc_runtime_knowledge?select=source_key,payload&kind=eq.PRODUCT&active=eq.true",
+        "mc_runtime_knowledge?select=source_key,payload:payload->product_name&kind=eq.PRODUCT&active=eq.true&limit=200",
       ),
     ]);
-    return Response.json({ campaigns, runtime, products });
+    return Response.json({ campaigns, runtime, products:products.map((p:any)=>({...p,payload:{product_name:p.payload}})) });
   } catch (e) {
     return apiError(e);
   }

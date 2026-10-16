@@ -306,15 +306,15 @@ export default function Contacts() {
         <button
           className="btn"
           disabled={!offset}
-          onClick={() => setOffset(Math.max(0, offset - 1000))}
+          onClick={() => setOffset(Math.max(0, offset - 50))}
         >
           Sebelumnya
         </button>
-        <span>Halaman {offset / 1000 + 1}</span>
+        <span>Halaman {offset / 50 + 1}</span>
         <button
           className="btn"
-          disabled={contacts.length < 1000}
-          onClick={() => setOffset(offset + 1000)}
+          disabled={contacts.length < 50}
+          onClick={() => setOffset(offset + 50)}
         >
           Berikutnya
         </button>

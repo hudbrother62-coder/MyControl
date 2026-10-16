@@ -1,0 +1,3 @@
+'use client';
+import {useEffect,useState} from 'react';
+export function useSummary(){const [data,setData]=useState<any>(null),[error,setError]=useState('');useEffect(()=>{let active=true;let pending=false;async function load(){if(document.hidden||pending)return;pending=true;try{const r=await fetch('/api/summary',{cache:'no-store'}),d=await r.json();if(!r.ok)throw new Error(d.error);if(active){setData(d);setError('')}}catch(e){if(active)setError((e as Error).message)}finally{pending=false}}void load();const id=setInterval(load,60000);return()=>{active=false;clearInterval(id)}},[]);return{data,error}}

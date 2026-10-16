@@ -1,4 +1,5 @@
 "use client";
+import StorePagination from "@/components/StorePagination";
 import { FormEvent, useState } from "react";
 import { useStore, rupiah, OrderStatus } from "@/components/Store";
 const statuses: OrderStatus[] = [
@@ -177,6 +178,7 @@ export default function Orders() {
           </tbody>
         </table>
       </div>
+      <StorePagination/>
     </>
   );
 }

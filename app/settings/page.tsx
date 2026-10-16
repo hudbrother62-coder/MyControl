@@ -2,14 +2,6 @@
 import { useStore } from "@/components/Store";
 export default function Settings() {
   const s = useStore();
-  function backup() {
-    const blob = new Blob([s.exportData()], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "my-control-backup.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
   return (
     <>
       <div className="pageHead">
@@ -36,11 +28,11 @@ export default function Settings() {
           <div className="settingRow">
             <div>
               <b>Export snapshot</b>
-              <span>Unduh snapshot data yang sedang terbaca di dashboard.</span>
+              <span>Unduh data bisnis lengkap saat diperlukan. Data dikirim bertahap tanpa dimuat saat halaman dibuka.</span>
             </div>
-            <button className="btn" onClick={backup}>
+            <a className="btn" href="/api/reports/export?backup=1">
               Download JSON
-            </button>
+            </a>
           </div>
           <div className="settingRow">
             <div>

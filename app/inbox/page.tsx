@@ -1,5 +1,6 @@
 "use client";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import StorePagination from "@/components/StorePagination";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "@/components/Store";
 export default function Inbox() {
   const s = useStore();
@@ -10,22 +11,25 @@ export default function Inbox() {
   const [sending, setSending] = useState(false);
   const requestRef = useRef<{ key: string; id: string } | null>(null);
   const initialChatApplied = useRef(false);
-  const c = s.conversations.find((x) => x.id === active);
-  const msgs = useMemo(
-    () => s.messages.filter((m) => m.conversationId === active),
-    [s.messages, active],
-  );
-  useEffect(() => {
-    const selected = new URLSearchParams(window.location.search).get("chat");
-    if (
-      !initialChatApplied.current &&
-      selected &&
-      s.conversations.some((x) => x.id === selected || x.phone.replace(/[^0-9]/g,'').replace(/^0/,'62')===selected.split('@')[0])
-    ) {
-      setActive(s.conversations.find(x=>x.id===selected||x.phone.replace(/[^0-9]/g,'').replace(/^0/,'62')===selected.split('@')[0])!.id);
-      initialChatApplied.current = true;
-    } else if (!active && s.conversations[0]) setActive(s.conversations[0].id);
-  }, [s.conversations, active]);
+  const [linkedConversation,setLinkedConversation]=useState<any>(null);
+  const c = s.conversations.find((x) => x.id === active)|| (linkedConversation?.id===active?linkedConversation:undefined);
+  const [msgs,setMsgs]=useState<any[]>([]),[historyError,setHistoryError]=useState(''),[older,setOlder]=useState(false),[historyBusy,setHistoryBusy]=useState(false);
+  const chatGeneration=useRef(0);const initialHistory=useRef(true);
+  async function loadMessages(append=false){if(!active)return;const version=chatGeneration.current;setHistoryBusy(true);try{
+    const first=append?msgs[0]:null;
+    const url='/api/control/inbox?chat='+encodeURIComponent(active)+(first?'&before='+encodeURIComponent(first.createdAt)+'&beforeId='+encodeURIComponent(first.id):'');
+    const r=await fetch(url,{cache:'no-store'}),d=await r.json();if(!r.ok)throw new Error(d.error);if(version!==chatGeneration.current)return;
+    setMsgs(previous=>{const combined=append?[...d.messages,...previous]:[...previous,...d.messages];return Array.from(new Map(combined.map(m=>[m.id,m])).values()).sort((a:any,b:any)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id))});
+    if(append||initialHistory.current){setOlder(d.hasMore);initialHistory.current=false;}setHistoryError('');
+  }catch(e){if(version===chatGeneration.current)setHistoryError((e as Error).message)}finally{if(version===chatGeneration.current)setHistoryBusy(false)}}
+  useEffect(()=>{chatGeneration.current++;initialHistory.current=true;setMsgs([]);setOlder(false);void loadMessages();const id=setInterval(()=>{if(!document.hidden)void loadMessages()},15000);return()=>{chatGeneration.current++;clearInterval(id)}},[active]);
+  useEffect(()=>{
+    const selected=new URLSearchParams(window.location.search).get('chat');
+    if(selected&&!initialChatApplied.current){
+      initialChatApplied.current=true;setActive(selected);
+      void fetch('/api/control/inbox?meta=1&chat='+encodeURIComponent(selected)).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setLinkedConversation(d.conversation)}).catch(e=>setHistoryError(e.message));
+    }else if(!selected&&(!active||!s.conversations.some(x=>x.id===active))&&s.conversations[0])setActive(s.conversations[0].id);
+  },[s.conversations,active]);
   function add(e: FormEvent) {
     e.preventDefault();
     if (!f.name || !f.phone) return;
@@ -43,6 +47,7 @@ export default function Inbox() {
     try {
       await s.sendMessage(c.id, text.trim(), "OWNER", requestRef.current.id);
       setText("");
+      await loadMessages();
       requestRef.current = null;
     } catch {
     } finally {
@@ -169,6 +174,8 @@ export default function Inbox() {
                 </div>
               </div>
               <div className="messageList">
+                {historyError&&<div className="notice errorNotice">{historyError}</div>}
+                {older&&<button className="btn" disabled={historyBusy} onClick={()=>void loadMessages(true)}>Muat pesan sebelumnya</button>}
                 {msgs.map((m) => (
                   <div
                     className={
@@ -185,7 +192,7 @@ export default function Inbox() {
                 ))}
                 {!msgs.length && (
                   <div className="empty">
-                    <strong>Belum ada pesan</strong>Balasan manual dapat diuji
+                    <strong>{historyBusy?"Memuat pesan…":"Belum ada pesan"}</strong>Balasan manual dapat diuji
                     di bawah.
                   </div>
                 )}
@@ -210,6 +217,7 @@ export default function Inbox() {
           )}
         </div>
       </div>
+      <StorePagination/>
     </>
   );
 }

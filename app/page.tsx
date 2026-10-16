@@ -1,27 +1,19 @@
 "use client";
 import Link from "next/link";
-import { useStore, rupiah } from "@/components/Store";
+import {useSummary} from "@/components/useSummary";
+import { rupiah } from "@/components/Store";
 export default function Page() {
-  const s = useStore();
-  const closing = s.orders.filter(
-    (o) => o.status === "PAID" || o.status === "FULFILLED",
-  );
-  const revenue = closing.reduce((a, o) => a + o.total, 0);
-  const profit = closing.reduce((a, o) => a + (o.total - o.cost), 0);
-  const pending = s.leads.filter((l) =>
-    ["FOLLOW_UP", "PENDING"].includes(l.status),
-  ).length;
-  const verify = s.payments.filter((p) =>
-    ["WAITING_ANALYSIS", "WAITING_OWNER", "MANUAL_REVIEW"].includes(p.status),
-  ).length;
+  const {data,error}=useSummary();
+  const revenue=Number(data?.revenue||0),profit=Number(data?.profit||0),pending=Number(data?.pending||0),verify=Number(data?.verify||0);
   const k = [
     ["Penjualan", rupiah(revenue), "Transaksi terverifikasi"],
-    ["Closing", String(closing.length), "Paid + fulfilled"],
+    ["Closing", String(data?.closing||0), "Paid + fulfilled"],
     ["Pending", String(pending), "Perlu tindak lanjut"],
     ["Laba Bersih", rupiah(profit), "Revenue - HPP"],
   ];
   return (
     <>
+      {error&&<div className="notice errorNotice">{error}</div>}
       <div className="pageHead">
         <div>
           <h1>Dashboard</h1>

@@ -56,8 +56,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true;
     async function check() {
+      if(document.visibilityState!=="visible")return;
       try {
-        const r = await fetch("/api/control/health", { cache: "no-store" });
+        const r = await fetch("/api/control/health?light=1", { cache: "no-store" });
         const data = await r.json();
         if (alive) setWaha(Boolean(r.ok && data.WAHA?.connected));
       } catch {
@@ -65,7 +66,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       }
     }
     check();
-    const id = setInterval(check, 30000);
+    const id = setInterval(check, 60000);
     return () => {
       alive = false;
       clearInterval(id);

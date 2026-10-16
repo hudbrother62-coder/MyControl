@@ -1,4 +1,5 @@
 "use client";
+import StorePagination from "@/components/StorePagination";
 import { FormEvent, useState } from "react";
 import { useStore, rupiah } from "@/components/Store";
 const sheet =
@@ -159,6 +160,7 @@ export default function Products() {
           </tbody>
         </table>
       </div>
+      <StorePagination/>
     </>
   );
 }
