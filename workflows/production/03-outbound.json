@@ -111,7 +111,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL) + ($('Claim Outbound Job').first().json.media_url ? '/api/sendVideo' : '/api/sendText')}}",
+        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + ($('Claim Outbound Job').first().json.media_url ? '/api/sendVideo' : '/api/sendText')}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -132,7 +132,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({session:$('Claim Outbound Job').first().json.session_name || $env.WAHA_SESSION || 'default',chatId:$('Claim Outbound Job').first().json.chat_id,...($('Claim Outbound Job').first().json.media_url?{caption:$('Claim Outbound Job').first().json.body,file:{url:($('Claim Outbound Job').first().json.media_url.startsWith('storage://')?$env.SUPABASE_URL+'/storage/v1'+$('Sign Private Video').first().json.signedURL:$('Claim Outbound Job').first().json.media_url),mimetype:'video/mp4',filename:'promo.mp4'}}:{text:$('Claim Outbound Job').first().json.body})}) }}",
+        "body": "={{ (() => { const job = $('Claim Outbound Job').first().json; const payload = { session: $('Check WAHA Working').first().json.name, chatId: job.chat_id }; if (job.media_url) { payload.caption = job.body; payload.file = { url: job.media_url.startsWith('storage://') ? $env.SUPABASE_URL + '/storage/v1' + $('Sign Private Video').first().json.signedURL : job.media_url, mimetype: 'video/mp4', filename: 'promo.mp4' }; } else { payload.text = job.body; } return JSON.stringify(payload); })() }}",
         "options": {
           "timeout": 60000
         }
@@ -279,7 +279,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n-v2',p_session:$env.WAHA_SESSION||'default',p_video:$env.WAHA_VIDEO_VERIFIED==='true'})}}",
+        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n-v2',p_session:$('Check WAHA Working').first().json.name,p_video:$env.WAHA_VIDEO_VERIFIED==='true'})}}",
         "options": {
           "timeout": 10000
         }
@@ -347,7 +347,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL) + '/api/sessions/' + encodeURIComponent($env.WAHA_SESSION||'default')}}",
+        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + '/api/sessions/' + encodeURIComponent(String($env.WAHA_SESSION || 'default').trim())}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
