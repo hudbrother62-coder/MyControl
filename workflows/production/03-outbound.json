@@ -3,17 +3,17 @@
   "nodes": [
     {
       "parameters": {
-        "content": "V2: replaces old outbound worker, do not run both. Set WAHA_VIDEO_VERIFIED=true only after real video test. Campaigns require fresh heartbeat and test send. Unknown outcomes are never retried blindly.",
+        "content": "V2: replaces old outbound worker, do not run both. Set WAHA_VIDEO_VERIFIED=true only after real video test. Campaigns require fresh heartbeat and test send. Unknown outcomes are never retried blindly.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
         "height": 340,
-        "width": 620
+        "width": 640
       },
       "id": "1a2415ac-7ac8-4a66-baf7-9b646494f315",
       "name": "C - OUTBOUND WORKER",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -1700,
-        1860
+        -1550,
+        1590
       ]
     },
     {
@@ -32,7 +32,7 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -900,
+        -1500,
         2050
       ]
     },
@@ -111,7 +111,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.WAHA_BASE_URL + ($('Claim Outbound Job').first().json.media_url ? '/api/sendVideo' : '/api/sendText')}}",
+        "url": "={{($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL) + ($('Claim Outbound Job').first().json.media_url ? '/api/sendVideo' : '/api/sendText')}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -347,7 +347,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.WAHA_BASE_URL + '/api/sessions/' + encodeURIComponent($env.WAHA_SESSION||'default')}}",
+        "url": "={{($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL) + '/api/sessions/' + encodeURIComponent($env.WAHA_SESSION||'default')}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -481,6 +481,82 @@
         710,
         2180
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_read_web_controls'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({})}}"
+      },
+      "id": "bd8dc969-c572-4c2b-9391-10b5bcce0811",
+      "name": "Read Web Controls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1300,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_ack_web_controls'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n',p_component:'OUTBOUND',p_version:$('Read Web Controls').first().json.version})}}"
+      },
+      "id": "2b1a9b5f-8470-466a-b662-5591dc8dfbd3",
+      "name": "Acknowledge Controls Version",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1100,
+        2050
+      ]
     }
   ],
   "connections": {
@@ -488,7 +564,7 @@
       "main": [
         [
           {
-            "node": "Check WAHA Working",
+            "node": "Read Web Controls",
             "type": "main",
             "index": 0
           }
@@ -655,6 +731,28 @@
           }
         ]
       ]
+    },
+    "Read Web Controls": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Controls Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge Controls Version": {
+      "main": [
+        [
+          {
+            "node": "Check WAHA Working",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -667,6 +765,7 @@
     "derivedFrom": "workflows/mycontrol.json",
     "isolation": "outbound",
     "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
-    "version": "campaign-v2"
+    "version": "campaign-v2",
+    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n"
   }
 }

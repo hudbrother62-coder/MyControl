@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 type Status = {
   connected: boolean;
@@ -31,11 +32,18 @@ export default function Integrations() {
       <div className="pageHead">
         <div>
           <h1>Integrasi</h1>
-          <p>Kesehatan koneksi berdasarkan pemeriksaan langsung.</p>
+          <p>
+            Periksa koneksi; alamat layanan diatur dari Kontrol Bot & Workflow.
+          </p>
         </div>
-        <button className="btn" onClick={load}>
-          Periksa ulang
-        </button>
+        <div className="actions">
+          <Link className="btn" href="/automation">
+            Atur integrasi
+          </Link>
+          <button className="btn" onClick={load}>
+            Periksa ulang
+          </button>
+        </div>
       </div>
       {error && <div className="notice errorNotice">{error}</div>}
       <div className="grid2 section">

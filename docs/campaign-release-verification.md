@@ -14,3 +14,9 @@
 - Actual campaigns created: 0. Actual messages sent: 0. Worker heartbeat rows: 0.
 
 Production deployment is verified separately from the final deployment response/SHA. This file does not certify live WhatsApp delivery, configured Groq credentials, signed-in browser behavior or active n8n workflows. Those require access to the user's actual n8n/WAHA instance and an owner-number acceptance test. See `campaign-rollout.md`.
+
+## Web controls update
+- Typecheck/build PASS; 49 automated tests PASS.
+- Independent review of web config/version, auth, SQL grants and workflow expressions completed with no remaining Important/Critical findings; live n8n remains unverified.
+- `mycontrol_006_web_workflow_controls` applied successfully on existing database. Model/instruction/toggle/hour/delay/address settings remain canonical and versioned.
+- Workflows 02/03/04 now read settings and report received version; credentials/topology remain in n8n. No workflows were activated and no customer messages sent by this update.

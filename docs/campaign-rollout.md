@@ -33,3 +33,12 @@ Before migration capture schema/function metadata and row counts; after migratio
 - Owner single-workspace/session `default` only; reject other sessions instead of conflating identities. Full multi-account identity mapping and LID resolution need separate migration before enabling more numbers.
 - Existing business-table public policies are a historical security issue outside this new private subsystem; do not claim the entire application's authorization has been audited. New campaign/memory tables and functions deny anon/authenticated access and use owner-session API.
 - Tests use 1,000 synthetic recipients and a PostgreSQL simulator. They never send 1,000 real WhatsApp messages.
+
+## Web workflow controls update
+Apply `006_web_controls.sql` once. `/automation` now saves model, owner instructions, switches, follow-up hours/cap, reply delay and public service base URLs through a version-checked owner API. Existing canonical bot settings remain the source. Anonymous/authenticated direct writes to bot_settings are revoked because browser writes use the owner-session proxy.
+
+Replace exported 02/03/04 workflows to receive the new controls; they read configuration and acknowledge its version. Keep existing n8n credentials and service-role environment. Model and instruction changes take effect at the next AI worker execution; URL override takes effect on outbound execution. All four workflow downloads are on the web. Inbound already reads canonical switches in SQL and needs no credential/config echo.
+
+Worker status says configuration received/read, not that inference or WhatsApp delivery succeeded. API keys, workflow topology, triggers/poll schedules and provider-specific authentication remain in n8n. Public URL overrides require HTTPS; internal Docker URLs remain via existing n8n environment. External service credentials are not editable or exposed in the web.
+
+Global follow-up OFF is enforced in SQL. Campaign follow-up remains suppressed by 005 independently. Master bot OFF pauses replies/follow-up; campaign pause remains separate and accessible from Campaigns. Error list and FAILED retry apply only to noncampaign jobs; UNKNOWN requires reconciliation and campaign failures are handled from Campaigns. Changing these settings does not install or activate n8n workflows.

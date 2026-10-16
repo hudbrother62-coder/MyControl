@@ -3,17 +3,17 @@
   "nodes": [
     {
       "parameters": {
-        "content": "AI Agent membuat followup_plan maksimal 3 item saat percakapan diproses.\nSupabase menjadwalkannya.\nPesan baru dari customer otomatis membatalkan follow-up lama.\nScheduler hanya dispatch pada jam 08:00–22:00 Asia/Jakarta.",
+        "content": "AI Agent membuat followup_plan maksimal 3 item saat percakapan diproses.\nSupabase menjadwalkannya.\nPesan baru dari customer otomatis membatalkan follow-up lama.\nScheduler hanya dispatch pada jam 08:00\u201322:00 Asia/Jakarta.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
         "height": 340,
-        "width": 620
+        "width": 640
       },
       "id": "19689e6d-a77e-468e-9ac4-5357c1d74b71",
       "name": "D - FOLLOW-UP",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -1700,
-        2520
+        -1550,
+        2240
       ]
     },
     {
@@ -32,7 +32,7 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -900,
+        -1500,
         2700
       ]
     },
@@ -111,10 +111,108 @@
         -620,
         2700
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_read_web_controls'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({})}}"
+      },
+      "id": "2ba44975-9689-40b6-930c-33479cc7fd32",
+      "name": "Read Web Controls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1300,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_ack_web_controls'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n',p_component:'FOLLOWUP',p_version:$('Read Web Controls').first().json.version})}}"
+      },
+      "id": "e979cf29-e55e-4bcb-b5a3-d98136ae35c4",
+      "name": "Acknowledge Controls Version",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1100,
+        2700
+      ]
     }
   ],
   "connections": {
     "Follow-up Scheduler - 60s": {
+      "main": [
+        [
+          {
+            "node": "Read Web Controls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Web Controls": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Controls Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge Controls Version": {
       "main": [
         [
           {
@@ -140,6 +238,7 @@
     "templateCredsSetupCompleted": false,
     "derivedFrom": "workflows/mycontrol.json",
     "isolation": "followup",
-    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed."
+    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
+    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n"
   }
 }

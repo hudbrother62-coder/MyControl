@@ -1,4 +1,4 @@
-import { db } from "./database";
+import { db, rpc } from "./database";
 async function check(url: string, headers: Record<string, string> = {}) {
   const r = await fetch(url, {
     headers,
@@ -10,6 +10,10 @@ async function check(url: string, headers: Record<string, string> = {}) {
 }
 export async function health() {
   const result: Record<string, any> = {};
+  const config = await rpc("mc_read_web_controls").catch(() => null);
+  const wahaUrl = config?.settings?.waha_base_url || process.env.WAHA_BASE_URL;
+  const n8nUrl = config?.settings?.n8n_base_url || process.env.N8N_BASE_URL;
+
   await Promise.all(
     ["DATABASE", "WAHA", "N8N", "TELEGRAM"].map(async (name) => {
       try {
@@ -17,10 +21,10 @@ export async function health() {
         if (name === "DATABASE")
           detail = await db("mc_lead_state?select=chat_id&limit=1");
         if (name === "WAHA") {
-          if (!process.env.WAHA_BASE_URL || !process.env.WAHA_API_KEY)
+          if (!wahaUrl || !process.env.WAHA_API_KEY)
             throw new Error("Belum dikonfigurasi");
           detail = await check(
-            process.env.WAHA_BASE_URL.replace(/\/$/, "") +
+            wahaUrl.replace(/\/$/, "") +
               "/api/sessions/" +
               encodeURIComponent(process.env.WAHA_SESSION || "default"),
             { "X-Api-Key": process.env.WAHA_API_KEY },
@@ -29,10 +33,8 @@ export async function health() {
             throw new Error("Session " + detail.status);
         }
         if (name === "N8N") {
-          if (!process.env.N8N_BASE_URL) throw new Error("Belum dikonfigurasi");
-          detail = await check(
-            process.env.N8N_BASE_URL.replace(/\/$/, "") + "/healthz",
-          );
+          if (!n8nUrl) throw new Error("Belum dikonfigurasi");
+          detail = await check(n8nUrl.replace(/\/$/, "") + "/healthz");
         }
         if (name === "TELEGRAM") {
           if (!process.env.TELEGRAM_BOT_TOKEN)

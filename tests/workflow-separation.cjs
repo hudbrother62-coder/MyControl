@@ -9,9 +9,9 @@ const original = JSON.parse(
 );
 const specs = [
   ["01-waha-inbound.json", "n8n-nodes-base.webhook", 8],
-  ["02-ai-worker.json", "n8n-nodes-base.scheduleTrigger", 30],
-  ["03-outbound.json", "n8n-nodes-base.scheduleTrigger", 16],
-  ["04-followup.json", "n8n-nodes-base.scheduleTrigger", 3],
+  ["02-ai-worker.json", "n8n-nodes-base.scheduleTrigger", 32],
+  ["03-outbound.json", "n8n-nodes-base.scheduleTrigger", 18],
+  ["04-followup.json", "n8n-nodes-base.scheduleTrigger", 5],
 ];
 const exported = specs.map(([file]) =>
   JSON.parse(fs.readFileSync(path.join(root, "production", file), "utf8")),
