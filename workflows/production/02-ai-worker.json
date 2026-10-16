@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "AI Agent adalah otak sales.\nSupabase = memory/source of truth.\nTools hanya READ-ONLY: Products, FAQ, Promotions + Think.\n\nFallback:\nSlot 1 Flash → Slot 2 Flash → Slot 3 Flash → Flash-Lite.\nJika semua gagal: AI job RETRY/FAILED, inbound tetap aman.",
+        "content": "AI Agent adalah otak sales.\nSupabase = memory/source of truth.\nTools hanya READ-ONLY: Products, FAQ, Promotions + Think.\n\nFallback:\nSlot 1 Flash \u2192 Slot 2 Flash \u2192 Slot 3 Flash \u2192 Flash-Lite.\nJika semua gagal: AI job RETRY/FAILED, inbound tetap aman.",
         "height": 480,
         "width": 700
       },
@@ -152,7 +152,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const job = $('Claim AI Job').first().json;\nconst ctx = $json ?? {};\n\nconst history = ctx.history ?? [];\nconst lead = ctx.lead_state ?? {};\nconst knowledge = ctx.knowledge ?? [];\n\nconst agentInput = [\n  `MODE: INBOUND_SALES`,\n  `CHAT_ID: ${job.chat_id}`,\n  `CURRENT CUSTOMER MESSAGE:\\n${job.message_text || ''}`,\n  `LEAD STATE:\\n${JSON.stringify(lead)}`,\n  `RECENT CONVERSATION HISTORY:\\n${JSON.stringify(history)}`,\n  `OFFICIAL KNOWLEDGE SNAPSHOT:\\n${JSON.stringify(knowledge)}`,\n  `Use the connected tools when you need to re-check official products, promotions, or FAQ.`\n].join('\\n\\n');\n\nreturn [{\n  json: {\n    job_id: job.job_id,\n    inbound_event_id: job.inbound_event_id,\n    chat_id: job.chat_id,\n    attempt_count: job.attempt_count ?? 1,\n    agent_input: agentInput\n  }\n}];"
+        "jsCode": "const job = $('Claim AI Job').first().json;\nconst ctx = $json ?? {};\n\nconst history = ctx.history ?? [];\nconst lead = ctx.lead_state ?? {};\nconst knowledge = ctx.knowledge ?? [];\nconst campaigns=ctx.campaigns??[];const opportunities=ctx.opportunities??[];\n\nconst agentInput = [\n  `MODE: INBOUND_SALES`,\n `SOURCED HISTORICAL CUSTOMER EXCERPTS: ${JSON.stringify(ctx.memory??{})}`,\n `CAMPAIGNS (inferred context, ask if ambiguous): ${JSON.stringify(campaigns)}`,\n `CRM: ${JSON.stringify(opportunities)}`,\n `PROMOTIONAL OPT OUT: ${Boolean(ctx.promotional_opt_out)}`,\n  `CHAT_ID: ${job.chat_id}`,\n  `CURRENT CUSTOMER MESSAGE:\\n${job.message_text || ''}`,\n  `LEAD STATE:\\n${JSON.stringify(lead)}`,\n  `RECENT CONVERSATION HISTORY:\\n${JSON.stringify(history)}`,\n  `OFFICIAL KNOWLEDGE SNAPSHOT:\\n${JSON.stringify(knowledge)}`,\n  `Use the connected tools when you need to re-check official products, promotions, or FAQ.`\n].join('\\n\\n');\n\nreturn [{\n  json: {\n    job_id: job.job_id,\n    inbound_event_id: job.inbound_event_id,\n    chat_id: job.chat_id,\n    attempt_count: job.attempt_count ?? 1,\n    agent_input: agentInput\n  }\n}];"
       },
       "id": "0b804c3e-7dc8-4b34-9d3e-fc8b56a1dd53",
       "name": "Prepare Agent Input",
@@ -165,14 +165,14 @@
     },
     {
       "parameters": {
-        "modelName": "={{$env.GEMINI_PRIMARY_MODEL}}",
+        "model": "={{$env.GROQ_MODEL}}",
         "options": {
-          "temperature": 0.45
+          "temperature": 0.3
         }
       },
       "id": "48aaa28a-717c-4643-a191-081c8d4674af",
-      "name": "Gemini Primary - Credential Slot 1",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "name": "Groq Primary - Credential Slot 1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
         450,
@@ -181,14 +181,14 @@
     },
     {
       "parameters": {
-        "modelName": "={{$env.GEMINI_PRIMARY_MODEL}}",
+        "model": "={{$env.GROQ_MODEL}}",
         "options": {
-          "temperature": 0.45
+          "temperature": 0.3
         }
       },
       "id": "b6226c3f-6bee-41d2-a60c-828731c80312",
-      "name": "Gemini Primary - Credential Slot 2",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "name": "Groq Primary - Credential Slot 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
         980,
@@ -197,14 +197,14 @@
     },
     {
       "parameters": {
-        "modelName": "={{$env.GEMINI_PRIMARY_MODEL}}",
+        "model": "={{$env.GROQ_MODEL}}",
         "options": {
-          "temperature": 0.45
+          "temperature": 0.3
         }
       },
       "id": "a4105eba-66ff-4267-afea-dfa5dece33a0",
-      "name": "Gemini Primary - Credential Slot 3",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "name": "Groq Primary - Credential Slot 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
         1510,
@@ -213,14 +213,14 @@
     },
     {
       "parameters": {
-        "modelName": "={{$env.GEMINI_FALLBACK_MODEL}}",
+        "model": "={{$env.GROQ_MODEL}}",
         "options": {
-          "temperature": 0.45
+          "temperature": 0.3
         }
       },
       "id": "10465e36-4a05-48bd-98eb-82d5ffc45bf5",
-      "name": "Gemini Fallback - Credential",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "name": "Groq Fallback - Credential",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
         2040,
@@ -233,7 +233,7 @@
         "text": "={{$json.agent_input}}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n\nKAMPANYE DAN CRM: riwayat kampanye adalah konteks, bukan bukti minat. Jika dua produk ambigu, tanya pelanggan. Jika promotional_opt_out=true, layani permintaan masuk tanpa promosi dan should_followup=false. Jangan set WON; gunakan AWAITING_PAYMENT untuk klaim transfer. Jangan mengubah catatan admin. Output fakta harus berasal dari pesan kontak ini sendiri.",
           "maxIterations": 6,
           "returnIntermediateSteps": false
         }
@@ -257,7 +257,7 @@
         "text": "={{$json.agent_input}}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n\nKAMPANYE DAN CRM: riwayat kampanye adalah konteks, bukan bukti minat. Jika dua produk ambigu, tanya pelanggan. Jika promotional_opt_out=true, layani permintaan masuk tanpa promosi dan should_followup=false. Jangan set WON; gunakan AWAITING_PAYMENT untuk klaim transfer. Jangan mengubah catatan admin. Output fakta harus berasal dari pesan kontak ini sendiri.",
           "maxIterations": 6,
           "returnIntermediateSteps": false
         }
@@ -281,7 +281,7 @@
         "text": "={{$json.agent_input}}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n\nKAMPANYE DAN CRM: riwayat kampanye adalah konteks, bukan bukti minat. Jika dua produk ambigu, tanya pelanggan. Jika promotional_opt_out=true, layani permintaan masuk tanpa promosi dan should_followup=false. Jangan set WON; gunakan AWAITING_PAYMENT untuk klaim transfer. Jangan mengubah catatan admin. Output fakta harus berasal dari pesan kontak ini sendiri.",
           "maxIterations": 6,
           "returnIntermediateSteps": false
         }
@@ -305,7 +305,7 @@
         "text": "={{$json.agent_input}}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n",
+          "systemMessage": "Kamu adalah AI Sales & Customer Service Bantu Beres yang bertugas melayani calon customer melalui WhatsApp.\n\nTUJUAN:\n- pahami kebutuhan customer sebelum menawarkan;\n- pilih produk resmi yang paling relevan;\n- jelaskan manfaat secara natural dan singkat;\n- bantu customer menuju demo/checkout jika datanya tersedia;\n- tangani keberatan dengan tenang;\n- gunakan CTA yang jelas tetapi tidak memaksa;\n- siapkan maksimal 3 follow-up kontekstual bila customer belum mengambil keputusan;\n- berhenti follow-up jika customer membalas, meminta manusia, WON, LOST, atau DO_NOT_CONTACT.\n\nATURAN KERAS:\n- hanya gunakan fakta dari context dan tools resmi;\n- jangan mengarang harga, promo, fitur, link, kebijakan, atau status pembayaran;\n- jangan mengaku pembayaran berhasil tanpa bukti;\n- jangan spam;\n- jangan mengaku sebagai manusia;\n- jika customer meminta admin/manusia atau kasus sensitif, set needs_human=true;\n- output wajib sesuai Structured Output Parser.\n\nGAYA:\nBahasa Indonesia WhatsApp yang hangat, singkat, natural, tidak seperti robot.\nContoh CTA natural: \"Kalau cocok, Kak, mau saya bantu lihat demo atau langkah belinya?\"\n\nFOLLOW-UP:\nBila relevan, buat followup_plan maksimal 3 item. Setiap item berisi sequence_no, after_minutes, message.\nGunakan after_minutes yang wajar, minimal 60 menit. Hindari mengulang kalimat yang sama.\n\nKAMPANYE DAN CRM: riwayat kampanye adalah konteks, bukan bukti minat. Jika dua produk ambigu, tanya pelanggan. Jika promotional_opt_out=true, layani permintaan masuk tanpa promosi dan should_followup=false. Jangan set WON; gunakan AWAITING_PAYMENT untuk klaim transfer. Jangan mengubah catatan admin. Output fakta harus berasal dari pesan kontak ini sendiri.",
           "maxIterations": 6,
           "returnIntermediateSteps": false
         }
@@ -523,7 +523,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_PRIMARY_MODEL,\n  slot_used: 1\n}}];"
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GROQ_MODEL,\n  slot_used: 1\n}}];"
       },
       "id": "ed1a7286-7132-42f4-9a89-1d3b2bc1d4a4",
       "name": "Use Decision - Slot 1",
@@ -537,7 +537,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_PRIMARY_MODEL,\n  slot_used: 2\n}}];"
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GROQ_MODEL,\n  slot_used: 2\n}}];"
       },
       "id": "20a7b8cb-2d44-406f-ab22-d0ad4193aead",
       "name": "Use Decision - Slot 2",
@@ -551,7 +551,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_PRIMARY_MODEL,\n  slot_used: 3\n}}];"
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GROQ_MODEL,\n  slot_used: 3\n}}];"
       },
       "id": "497b23bc-6ad1-4e93-822c-046647a7d840",
       "name": "Use Decision - Slot 3",
@@ -565,7 +565,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GEMINI_FALLBACK_MODEL,\n  slot_used: 3\n}}];"
+        "jsCode": "const meta = $('Prepare Agent Input').first().json;\nconst decision = $json.output ?? $json;\nif(!decision||typeof decision!=='object'||Array.isArray(decision)||typeof decision.should_reply!=='boolean'||typeof decision.needs_human!=='boolean'||typeof decision.stage!=='string'||typeof decision.reply!=='string'||decision.reply.length>4000)throw new Error('Invalid structured decision');\nreturn [{json:{\n  ...meta,\n  decision,\n  reply: decision.reply ?? '',\n  model_used: $env.GROQ_MODEL,\n  slot_used: 3\n}}];"
       },
       "id": "86095440-7a63-4f6a-add1-b8fc6aeb829c",
       "name": "Use Decision - Flash-Lite",
@@ -1009,7 +1009,7 @@
         ]
       ]
     },
-    "Gemini Primary - Credential Slot 1": {
+    "Groq Primary - Credential Slot 1": {
       "ai_languageModel": [
         [
           {
@@ -1020,7 +1020,7 @@
         ]
       ]
     },
-    "Gemini Primary - Credential Slot 2": {
+    "Groq Primary - Credential Slot 2": {
       "ai_languageModel": [
         [
           {
@@ -1031,7 +1031,7 @@
         ]
       ]
     },
-    "Gemini Primary - Credential Slot 3": {
+    "Groq Primary - Credential Slot 3": {
       "ai_languageModel": [
         [
           {
@@ -1042,7 +1042,7 @@
         ]
       ]
     },
-    "Gemini Fallback - Credential": {
+    "Groq Fallback - Credential": {
       "ai_languageModel": [
         [
           {
@@ -1205,6 +1205,7 @@
     "templateCredsSetupCompleted": false,
     "derivedFrom": "workflows/mycontrol.json",
     "isolation": "ai",
-    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed."
+    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
+    "provider": "Groq, configure groqApi credentials and available GROQ_MODEL before activation"
   }
 }

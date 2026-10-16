@@ -6,12 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/database.cjs tests/workflow.cjs tests/server.cjs tests/legacy.cjs tests/workflow-separation.cjs",
+    "test": "node --test tests/database.cjs tests/workflow.cjs tests/server.cjs tests/legacy.cjs tests/workflow-separation.cjs tests/campaigns.cjs tests/campaign-input.cjs",
     "typecheck": "tsc --noEmit",
     "test:http": "node tests/http-smoke.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
+    "exceljs": "4.4.0",
     "lucide-react": "^0.468.0",
     "next": "^15.2.0",
     "react": "^19.0.0",

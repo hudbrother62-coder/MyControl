@@ -45,3 +45,11 @@ Owner-authenticated webhook setup. `/status`, `/rekap`, `/pending`, `/closing`, 
 ## Activation checklist
 
 Install migrations; verify business schema and payment triggers; populate official product/promo/FAQ; verify model/credentials and n8n import; link WAHA session if needed; test inbound/reply/manual/takeover/Telegram/restart with a test number and actual delivery receipts. Only then activate customer traffic. A successful code deployment alone is not end-to-end production approval.
+
+## Campaigns / CRM release — 16 October 2026
+
+New `/campaigns`, `/contacts` and `/crm` extend this same app. See [release and activation guide](docs/campaign-rollout.md) and migration `database/005_campaigns.sql`. CSV/XLSX import, private video upload, two-step campaign queue, test-send gating, recipient tracking and campaign-aware bot context are included. Campaign launch is blocked until the new outbound worker has a fresh verified-session heartbeat; web deployment alone never launches a blast.
+
+Production workflow exports now use Groq instead of Gemini. Configure actual Groq credentials/model before activation; the combined legacy export is retained only as a historical baseline. The old Gemini configuration instructions above describe the previous release, not the upgraded worker.
+
+Validation: `npm run typecheck`, `npm test`, `npm run build`, then `node --test tests/campaign-http.cjs` for HTTP integration against a disposable PostgreSQL adapter. These tests do not send real WhatsApp messages.

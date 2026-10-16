@@ -9,13 +9,22 @@ export default function Inbox() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const requestRef = useRef<{ key: string; id: string } | null>(null);
+  const initialChatApplied = useRef(false);
   const c = s.conversations.find((x) => x.id === active);
   const msgs = useMemo(
     () => s.messages.filter((m) => m.conversationId === active),
     [s.messages, active],
   );
   useEffect(() => {
-    if (!active && s.conversations[0]) setActive(s.conversations[0].id);
+    const selected = new URLSearchParams(window.location.search).get("chat");
+    if (
+      !initialChatApplied.current &&
+      selected &&
+      s.conversations.some((x) => x.id === selected || x.phone.replace(/[^0-9]/g,'').replace(/^0/,'62')===selected.split('@')[0])
+    ) {
+      setActive(s.conversations.find(x=>x.id===selected||x.phone.replace(/[^0-9]/g,'').replace(/^0/,'62')===selected.split('@')[0])!.id);
+      initialChatApplied.current = true;
+    } else if (!active && s.conversations[0]) setActive(s.conversations[0].id);
   }, [s.conversations, active]);
   function add(e: FormEvent) {
     e.preventDefault();
