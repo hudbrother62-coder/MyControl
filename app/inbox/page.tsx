@@ -6,6 +6,7 @@ export default function Inbox() {
   const s = useStore();
   const [active, setActive] = useState<string>(s.conversations[0]?.id || "");
   const [show, setShow] = useState(false);
+  const [search, setSearch] = useState("");
   const [f, setF] = useState({ name: "", phone: "", product: "" });
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -13,6 +14,12 @@ export default function Inbox() {
   const initialChatApplied = useRef(false);
   const [linkedConversation,setLinkedConversation]=useState<any>(null);
   const c = s.conversations.find((x) => x.id === active)|| (linkedConversation?.id===active?linkedConversation:undefined);
+  const query = search.trim().toLocaleLowerCase("id");
+  const filteredConversations = s.conversations.filter((item) =>
+    [item.name, item.phone, item.product].some((value) =>
+      String(value || "").toLocaleLowerCase("id").includes(query)
+    )
+  );
   const [msgs,setMsgs]=useState<any[]>([]),[historyError,setHistoryError]=useState(''),[older,setOlder]=useState(false),[historyBusy,setHistoryBusy]=useState(false);
   const chatGeneration=useRef(0);const initialHistory=useRef(true);
   async function loadMessages(append=false){if(!active)return;const version=chatGeneration.current;setHistoryBusy(true);try{
@@ -124,11 +131,13 @@ export default function Inbox() {
         <div className="card conversationList">
           <input
             className="search"
-            placeholder="Cari customer atau nomor..."
-            disabled
+            placeholder="Cari nama, nomor, atau produk..."
+            aria-label="Cari percakapan"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
           />
           <div className="conversationItems">
-            {s.conversations.map((x) => (
+            {filteredConversations.map((x) => (
               <button
                 key={x.id}
                 className={
@@ -141,10 +150,10 @@ export default function Inbox() {
                 <small>{x.phone}</small>
               </button>
             ))}
-            {!s.conversations.length && (
+            {!filteredConversations.length && (
               <div className="empty">
-                <strong>Belum ada percakapan</strong>Tambahkan kontak WhatsApp
-                atau tunggu pesan masuk.
+                <strong>{query ? "Tidak ada hasil pencarian" : "Belum ada percakapan"}</strong>
+                {query ? "Coba nama atau nomor WhatsApp lain." : "Tambahkan kontak WhatsApp atau tunggu pesan masuk."}
               </div>
             )}
           </div>
