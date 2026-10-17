@@ -18,7 +18,12 @@ type Subscription={id:string;chat_id:string;product_id:string;plan_name:string;a
 type Snapshot={subscriptions:Subscription[];payments:{id:string;subscription_id:string;amount:number;paid_at:string;reference:string}[];
  drafts:{id:string;reply:string;created_at:string;status:string}[];audit:{id:string;action:string;created_at:string;detail:any}[];
  memory:{summary?:string;updated_at?:string};consent:{consent?:boolean;consent_at?:string;source?:string;opted_out_at?:string};
- products:{id:string;name:string}[]};
+ products:{id:string;name:string}[];
+ auto_insights?:{source:string;product_name?:string;contact_product_id?:string;product_confidence?:string;
+ suggested_response_style?:string;inferred_lifecycle?:string;latest_customer_message?:string;
+ conversation_excerpt?:string;lead_status?:string;crm_stage?:string;subscription?:{plan_name?:string;amount?:number;due_at?:string;status?:string}};
+ verified_orders?:{id:string;product_id:string;product_name:string;total:number;paid_at:string;status:string}[];
+};
 const dateWib=(value?:string|null)=>{
  if(!value)return "Belum ada";
  if(value==="infinity")return "Sampai diaktifkan";
@@ -56,7 +61,7 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
  const [replyStart,setReplyStart]=useState(contact.reply_window_start||"08:00");
  const [replyEnd,setReplyEnd]=useState(contact.reply_window_end||"22:00");
  const [cooldown,setCooldown]=useState(Number(contact.reply_cooldown_seconds??3));
- const [maxReplyChars,setMaxReplyChars]=useState(Number(contact.max_reply_chars??350));
+ // Panjang balasan ditentukan AI secara adaptif, bukan batas karakter manual.
  const [confirmedConsent,setConfirmedConsent]=useState(false),[scope,setScope]=useState(contact.exclusion||"NONE");
  const [sub,setSub]=useState({...blankSub}),[paymentChecks,setPaymentChecks]=useState<Record<string,boolean>>({});
  const phoneReady=!!c.phone&&/^[1-9][0-9]{7,14}$/.test(c.phone)&&!c.chat_id.endsWith("@lid");
@@ -111,6 +116,8 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
    evidence:s.consent_evidence||"",graceDays:String(s.grace_days)});setActive("billing");
  }
  const subs=snapshot?.subscriptions||[];
+ const auto=snapshot?.auto_insights;
+ const verifiedOrders=snapshot?.verified_orders||[];
  const pendingDrafts=(snapshot?.drafts||[]).filter(x=>x.status==="PENDING");
  const effectiveStatus=isBlocked?"Diblokir":c.automation_mode==="MANUAL"?"Admin Manual":paused?"Dijeda":
   c.automation_mode==="HYBRID"?"Hybrid · perlu persetujuan":"AI Otomatis";
@@ -135,6 +142,16 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
       <span>{paused?"Jeda berakhir: "+dateWib(c.pause_until):"Tetap mengikuti sakelar bot global dan kebijakan per kontak."}</span>
     </div><span className={"badge "+(isBlocked||paused||c.automation_mode==="MANUAL"?"warn":"ok")}>{isBlocked||paused?"OFF":"TERKENDALI"}</span></div>
     {active==="ai"&&<>
+      <div className="contactProAutoPanel">
+       <div className="sectionTitle"><b>AI membaca kontak ini otomatis</b><span className="badge ok">DARI CHAT & CRM</span></div>
+       <div className="contactProAutoGrid">
+        <div><small>Produk terdeteksi</small><b>{auto?.product_name||"Belum terdeteksi"}</b></div>
+        <div><small>Gaya bahasa adaptif</small><b>{auto?.suggested_response_style?.replaceAll("_"," ").toLowerCase()||"Sopan natural"}</b></div>
+        <div><small>Status pelanggan</small><b>{lifecycleLabels[auto?.inferred_lifecycle||""]||"Prospek"}</b></div>
+       </div>
+       <p>{auto?.latest_customer_message?"Pesan terakhir: “"+auto.latest_customer_message+"”":"Belum ada pesan pelanggan yang bisa dianalisis."}</p>
+       <small className="muted">AI tetap sopan. Minat dan gaya disimpulkan dari percakapan; status bayar harus diverifikasi.</small>
+      </div>
       <section className="contactControlSection"><h3><UserRoundCog size={17}/> Mode operasional</h3>
       <div className="contactModeOptions">{modes.map(([mode,label,desc])=><button key={mode} disabled={busy}
        className={"contactModeOption "+((c.automation_mode||"AI")===mode?"selected":"")}
@@ -171,19 +188,20 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
         <label className="fieldLabel">Mulai<input className="input" type="time" value={replyStart} onChange={e=>setReplyStart(e.target.value)}/></label>
         <label className="fieldLabel">Selesai<input className="input" type="time" value={replyEnd} onChange={e=>setReplyEnd(e.target.value)}/></label>
        </div>}
-       <div className="contactProForm">
-        <label className="fieldLabel">Jeda respons (detik)<input className="input" type="number" min="0" max="120" value={cooldown} onChange={e=>setCooldown(Number(e.target.value))}/></label>
-        <label className="fieldLabel">Target panjang jawaban (karakter)<input className="input" type="number" min="80" max="1200" value={maxReplyChars} onChange={e=>setMaxReplyChars(Number(e.target.value))}/></label>
-       </div>
+       <label className="fieldLabel">Jeda respons (detik)
+        <input className="input" type="number" min="0" max="120" value={cooldown} onChange={e=>setCooldown(Number(e.target.value))}/>
+       </label>
+       <p>AI bebas menyesuaikan panjang jawaban mengikuti pertanyaan pelanggan. Tidak ada target karakter yang perlu diatur.</p>
        <p>Pesan AI di luar jam pengiriman akan menunggu, lalu diperiksa lagi sebelum dikirim. Balasan manual tidak dijadwalkan ulang.</p>
        <button className="btn primary" disabled={busy} onClick={()=>void mutate({action:"reply_policy",enabled:replyWindow,start:replyStart,
-        end:replyEnd,cooldown,maxChars:maxReplyChars},"Jadwal dan jeda respons tersimpan.",
+        end:replyEnd,cooldown,maxChars:1200},"Jadwal dan jeda respons tersimpan.",
         d=>setC(v=>({...v,...d})))}>Simpan jadwal</button>
       </section>
-      <section className="contactControlSection"><h3>Gaya AI & informasi pelanggan</h3>
-       <label className="fieldLabel">Gaya jawaban<select className="input" value={style} onChange={e=>setStyle(e.target.value)}>
-        <option value="CONSULTATIVE">Konsultatif dan sopan</option><option value="CONCISE">Singkat dan langsung</option>
-        <option value="PERSUASIVE">Persuasif tanpa memaksa</option></select></label>
+      <details className="contactControlSection">
+       <summary>Pengaturan khusus (opsional) — standar AI sudah otomatis</summary>
+       <h3>Preferensi jika ingin mengoreksi AI</h3>
+       <p>AI menentukan gaya dari chat. Isi instruksi berikut hanya jika ada pengecualian yang penting.</p>
+       <p className="muted">Gaya default: sopan, adaptif terhadap interaksi terbaru.</p>
        <label className="fieldLabel">Instruksi per pelanggan<textarea className="input" rows={3} maxLength={1500} value={instruction}
         onChange={e=>setInstruction(e.target.value)} placeholder="Contoh: utamakan penjelasan manfaat untuk usaha kecil"/></label>
        <button className="btn primary" disabled={busy} onClick={()=>void mutate({action:"sales_profile",
@@ -191,6 +209,7 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
         "Profil AI dan batas follow-up tersimpan.",d=>setC(v=>({...v,...d})))}>
         Simpan strategi AI</button>
       </section>
+      </details>
       {pendingDrafts.length>0&&<section className="contactControlSection"><h3>Menunggu persetujuan admin ({pendingDrafts.length})</h3>
         {pendingDrafts.map(d=><div className="contactProDraft" key={d.id}>
           <small>{dateWib(d.created_at)} · Draft AI, belum dikirim</small><p>{d.reply}</p>
@@ -232,7 +251,17 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
     </>}
     {active==="billing"&&<>
       <section className="contactControlSection"><h3><CalendarClock size={17}/> Langganan pelanggan</h3>
-       {subs.length===0&&<p>Belum ada paket berlangganan. Isi detail di bawah untuk menyiapkan jatuh tempo.</p>}
+       {subs.length===0&&<p>Belum ada langganan aktif yang terkonfirmasi. Bot tidak akan menganggap minat chat sebagai pembelian.</p>}
+       {auto?.product_name&&<div className="contactProAutoPanel">
+         <b>Produk yang terdeteksi: {auto.product_name}</b>
+         <p>Status: {lifecycleLabels[auto.inferred_lifecycle||""]||"Prospek"} · bersumber dari percakapan/CRM.</p>
+         {verifiedOrders.length===0&&<small>Belum ada pesanan dengan pembayaran terverifikasi. Nominal dan jatuh tempo belum dapat dibuat otomatis.</small>}
+        </div>}
+       {verifiedOrders.map(o=><div className="contactProAutoPanel" key={o.id}>
+         <b>Pesanan telah terverifikasi: {o.product_name}</b>
+         <p>{formatCurrency(o.total)} · {dateWib(o.paid_at)}. Periksa apakah produknya memang berlangganan bulanan.</p>
+         <button className="btn" onClick={()=>setSub(s=>({...s,productId:o.product_id,planName:o.product_name,amount:String(o.total)}))}>Gunakan detail transaksi untuk formulir</button>
+        </div>)}
        {subs.map(s=><div key={s.id} className="contactProSubscription">
         <div className="sectionTitle"><b>{s.plan_name}</b><span className={"badge "+(s.status==="ACTIVE"?"ok":"warn")}>{s.status==="ACTIVE"?"AKTIF":"BERHENTI"}</span></div>
         <div className="contactControlHistory">
@@ -261,7 +290,9 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
         </div>}
        </div>)}
       </section>
-      <section className="contactControlSection"><h3>{sub.id?"Edit langganan":"Tambah paket langganan"}</h3>
+      <details className="contactControlSection" open={!!sub.id}>
+       <summary>{sub.id?"Edit detail paket":"Koreksi atau tambahkan kontrak berlangganan (jika belum tercatat)"}</summary>
+       <p>Produk dan histori pelanggan dibaca otomatis. Lengkapi hanya kontrak/tanggal jatuh tempo yang belum punya bukti di sistem.</p>
        <div className="contactProForm">
         <label className="fieldLabel">Produk<select className="input" value={sub.productId} onChange={e=>setSub(v=>({...v,productId:e.target.value}))}>
          <option value="">Pilih produk</option>{(snapshot?.products||[]).map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
@@ -281,13 +312,25 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
        <div className="actions"><button className="btn primary" disabled={busy} onClick={saveSubscription}>Simpan langganan</button>
         <button className="btn" disabled={busy} onClick={()=>setSub({...blankSub})}>Kosongkan</button></div>
       </section>
+      </details>
       <section className="contactControlSection"><h3>Riwayat pembayaran terverifikasi</h3>
        {(snapshot?.payments||[]).length===0?<p>Belum ada pembayaran terverifikasi.</p>:(snapshot?.payments||[]).map(x=><div className="contactProHistoryRow" key={x.id}>
         <b>{formatCurrency(x.amount)}</b><small>{dateWib(x.paid_at)} · {x.reference||"Tanpa referensi"}</small></div>)}
       </section>
     </>}
     {active==="memory"&&<>
-      <section className="contactControlSection"><h3><MessageCircle size={17}/> Profil pelanggan untuk AI</h3>
+      <section className="contactControlSection">
+       <h3><MessageCircle size={17}/> Memori otomatis dari interaksi</h3>
+       <div className="contactProAutoGrid">
+        <div><small>Produk diminati</small><b>{auto?.product_name||"Belum diketahui"}</b></div>
+        <div><small>Tahap pelanggan</small><b>{lifecycleLabels[auto?.inferred_lifecycle||""]||"Prospek"}</b></div>
+        <div><small>Gaya komunikasi</small><b>{auto?.suggested_response_style?.replaceAll("_"," ").toLowerCase()||"Sopan"}</b></div>
+       </div>
+       <p className="contactProMemoryText">{auto?.conversation_excerpt||"Belum ada pesan pelanggan yang bisa dirangkum."}</p>
+       <p>Informasi tersebut dibaca dari WhatsApp, CRM dan transaksi terverifikasi. Tidak perlu input manual.</p>
+      </section>
+      <details className="contactControlSection"><summary>Perbaiki profil secara manual (opsional)</summary>
+       <h3>Profil tambahan dari owner</h3>
        <label className="fieldLabel">Tahap pelanggan<select className="input" value={lifecycle} onChange={e=>setLifecycle(e.target.value)}>
         {Object.entries(lifecycleLabels).map(([key,label])=><option value={key} key={key}>{label}</option>)}</select></label>
        <label className="fieldLabel">Kebutuhan dan konteks pelanggan<textarea rows={4} maxLength={2000} className="input" value={profile}
@@ -296,10 +339,12 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
          customerProfile:profile,lifecycle,maxFollowups},"Memori owner untuk AI tersimpan.",d=>setC(v=>({...v,...d})))}>
         Simpan profil AI</button>
       </section>
-      <section className="contactControlSection"><h3>Catatan hanya untuk admin</h3>
+      </details>
+      <details className="contactControlSection"><summary>Catatan hanya untuk admin (opsional)</summary><h3>Catatan admin</h3>
        <textarea className="input" rows={3} maxLength={2000} value={note} onChange={e=>setNote(e.target.value)}/>
        <button className="btn" disabled={busy||note.trim()===(c.note||"")} onClick={()=>void mutate({action:"contact_preferences",note:note.trim()},
         "Catatan admin disimpan.",d=>setC(v=>({...v,note:d.note})))}>Simpan catatan</button></section>
+      </details>
       <section className="contactControlSection"><h3>Memori riwayat percakapan</h3>
        <p className="contactProMemoryText">{snapshot?.memory?.summary||"Memori belum terisi. Riwayat chat tetap tersedia di Inbox."}</p>
        <small className="muted">Terakhir diperbarui: {dateWib(snapshot?.memory?.updated_at)}</small>

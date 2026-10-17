@@ -1321,3 +1321,20 @@ body.dark .taskRowIcon { background:var(--soft); }
  .onePageCampaign .actions>.btn{flex:1;}
  .onePageCampaign .input,.onePageCampaign textarea,.onePageCampaign select{font-size:16px;max-width:100%;min-width:0;}
 }
+
+/* Automatic contact intelligence: cards first, optional corrections last */
+.contactProAutoPanel{border:1px solid var(--line);border-radius:12px;background:var(--soft);padding:15px;margin-top:13px;}
+.contactProAutoPanel .sectionTitle{display:flex;align-items:center;justify-content:space-between;}
+.contactProAutoPanel b{font-size:12px;}
+.contactProAutoPanel p,.contactProAutoPanel small{font-size:11px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere;}
+.contactProAutoGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0;}
+.contactProAutoGrid>div{border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0;}
+.contactProAutoGrid small,.contactProAutoGrid b{display:block;}
+.contactProAutoGrid small{font-size:10px;color:var(--muted);margin-bottom:7px;}
+.contactProAutoGrid b{font-size:12px;overflow-wrap:anywhere;line-height:1.5;}
+.contactProTabs{overflow-y:hidden;scrollbar-width:none;}
+.contactProTabs::-webkit-scrollbar{display:none;}
+.contactProBody{scrollbar-width:thin;min-height:0;}
+.contactProModal details>summary{cursor:pointer;padding:10px 0;font-weight:700;font-size:12px;}
+@media(max-width:640px){.contactProAutoGrid{grid-template-columns:1fr 1fr;}.contactProAutoGrid>div:last-child{grid-column:1 / -1;}
+.contactProModal .input,.contactProModal textarea,.contactProModal select{font-size:16px;max-width:100%;min-width:0;}}
