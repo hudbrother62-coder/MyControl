@@ -26,8 +26,73 @@ export async function POST(req: Request) {
       return Response.json({ ok: true, conversationId: phone + "@c.us" });
     }
     const chat = await chatId(String(b.conversationId || ""));
+    if (b.action === "contact_mode") {
+      if (!["AI", "HYBRID", "MANUAL"].includes(b.mode))
+        throw new Error("Mode tidak valid");
+      return Response.json(await rpc("mc_set_contact_mode", {
+        p_chat_id: chat, p_mode: b.mode,
+      }));
+    }
+    if (b.action === "sales_profile") {
+      if (!["CONSULTATIVE","CONCISE","PERSUASIVE"].includes(b.responseStyle) ||
+          !["PROSPECT","BUYER","ACTIVE","DUE_SOON","OVERDUE","CHURNED"].includes(b.lifecycle) ||
+          !Number.isInteger(b.maxFollowups) || b.maxFollowups < 0 || b.maxFollowups > 3 ||
+          typeof b.customInstruction !== "string" || b.customInstruction.length > 1500 ||
+          typeof b.customerProfile !== "string" || b.customerProfile.length > 2000)
+        throw new Error("Profil tidak valid");
+      return Response.json(await rpc("mc_set_contact_sales_profile", {
+        p_chat_id: chat, p_style: b.responseStyle, p_instruction: b.customInstruction,
+        p_profile: b.customerProfile, p_lifecycle: b.lifecycle, p_max_followups: b.maxFollowups,
+      }));
+    }
+    if (b.action === "promo_consent") {
+      if (typeof b.allowed !== "boolean" || typeof b.evidence !== "string" || b.evidence.length > 500)
+        throw new Error("Izin promosi tidak valid");
+      return Response.json(await rpc("mc_record_contact_promo_consent", {
+        p_chat_id: chat, p_allowed: b.allowed, p_evidence: b.evidence,
+      }));
+    }
+    if (b.action === "review_draft") {
+      if (typeof b.draftId !== "string" || !/^[a-f0-9-]{36}$/i.test(b.draftId) ||
+          typeof b.approve !== "boolean") throw new Error("Draft tidak valid");
+      return Response.json(await rpc("mc_review_contact_draft", {
+        p_draft_id: b.draftId, p_approve: b.approve,
+      }));
+    }
+    if (b.action === "subscription_save") {
+      if (b.id != null && (typeof b.id !== "string" || !/^[a-f0-9-]{36}$/i.test(b.id)))
+        throw new Error("ID langganan tidak valid");
+      if (typeof b.planName !== "string" || b.planName.length > 100 ||
+          typeof b.productId !== "string" || !/^[A-Za-z0-9_-]{2,80}$/.test(b.productId) ||
+          typeof b.dueAt !== "string" || !Number.isFinite(Date.parse(b.dueAt)) ||
+          !Number.isFinite(b.amount) || b.amount <= 0 ||
+          !Number.isInteger(b.graceDays) || b.graceDays < 0 || b.graceDays > 30 ||
+          typeof b.reminderEnabled !== "boolean" || typeof b.serviceOptIn !== "boolean" ||
+          typeof b.evidence !== "string" || b.evidence.length > 500)
+        throw new Error("Langganan tidak valid");
+      return Response.json(await rpc("mc_upsert_subscription", {
+        p_id: b.id || null, p_chat_id: chat, p_product_id: b.productId, p_plan_name: b.planName,
+        p_amount: b.amount, p_due_at: b.dueAt, p_reminder_enabled: b.reminderEnabled,
+        p_service_opt_in: b.serviceOptIn, p_evidence: b.evidence, p_grace_days: b.graceDays,
+      }));
+    }
+    if (b.action === "subscription_payment") {
+      if (typeof b.id !== "string" || !/^[a-f0-9-]{36}$/i.test(b.id) ||
+          !Number.isFinite(b.amount) || b.amount <= 0 ||
+          typeof b.paidAt !== "string" || !Number.isFinite(Date.parse(b.paidAt)) ||
+          typeof b.reference !== "string" || b.reference.length > 500)
+        throw new Error("Pembayaran tidak valid");
+      return Response.json(await rpc("mc_confirm_subscription_payment", {
+        p_id: b.id, p_amount: b.amount, p_paid_at: b.paidAt, p_reference: b.reference,
+      }));
+    }
+    if (b.action === "subscription_cancel") {
+      if (typeof b.id !== "string" || !/^[a-f0-9-]{36}$/i.test(b.id))
+        throw new Error("ID langganan tidak valid");
+      return Response.json(await rpc("mc_cancel_subscription", { p_id: b.id }));
+    }
     if (b.action === "contact_pause") {
-      if (!Number.isInteger(b.minutes) || ![-1, 0, 15, 60, 480, 1440, 10080].includes(b.minutes))
+      if (!Number.isInteger(b.minutes) || !(b.minutes === -1 || b.minutes === 0 || (b.minutes >= 5 && b.minutes <= 10080)))
         throw new Error("Durasi jeda tidak valid");
       return Response.json(await rpc("mc_set_contact_bot_pause", {
         p_chat_id: chat,
