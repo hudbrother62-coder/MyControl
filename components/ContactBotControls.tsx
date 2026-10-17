@@ -208,7 +208,6 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
         responseStyle:style,customerProfile:profile,customInstruction:instruction,lifecycle,maxFollowups},
         "Profil AI dan batas follow-up tersimpan.",d=>setC(v=>({...v,...d})))}>
         Simpan strategi AI</button>
-      </section>
       </details>
       {pendingDrafts.length>0&&<section className="contactControlSection"><h3>Menunggu persetujuan admin ({pendingDrafts.length})</h3>
         {pendingDrafts.map(d=><div className="contactProDraft" key={d.id}>
