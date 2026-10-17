@@ -45,6 +45,18 @@ export async function POST(req: Request) {
         p_profile: b.customerProfile, p_lifecycle: b.lifecycle, p_max_followups: b.maxFollowups,
       }));
     }
+    if (b.action === "reply_policy") {
+      if (typeof b.enabled !== "boolean" ||
+          typeof b.start !== "string" || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(b.start) ||
+          typeof b.end !== "string" || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(b.end) ||
+          !Number.isInteger(b.cooldown) || b.cooldown < 0 || b.cooldown > 120 ||
+          !Number.isInteger(b.maxChars) || b.maxChars < 80 || b.maxChars > 1200)
+        throw new Error("Jam respons atau cooldown tidak valid");
+      return Response.json(await rpc("mc_set_contact_reply_policy", {
+        p_chat_id: chat, p_enabled: b.enabled, p_start: b.start, p_end: b.end,
+        p_cooldown: b.cooldown, p_max_chars: b.maxChars,
+      }));
+    }
     if (b.action === "promo_consent") {
       if (typeof b.allowed !== "boolean" || typeof b.evidence !== "string" || b.evidence.length > 500)
         throw new Error("Izin promosi tidak valid");

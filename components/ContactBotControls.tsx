@@ -10,6 +10,8 @@ export type ManagedContact={
  last_customer_message_at?:string|null;last_ai_message_at?:string|null;
  automation_mode?:string;response_style?:string;custom_instruction?:string;customer_profile?:string;
  lifecycle?:string;max_followups?:number;
+ reply_window_enabled?:boolean;reply_window_start?:string;reply_window_end?:string;
+ reply_cooldown_seconds?:number;max_reply_chars?:number;
 };
 type Subscription={id:string;chat_id:string;product_id:string;plan_name:string;amount:number;due_at:string;status:string;
  reminder_enabled:boolean;service_opt_in:boolean;consent_evidence:string;grace_days:number;last_paid_at:string|null;updated_at:string};
@@ -50,6 +52,11 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
  const [instruction,setInstruction]=useState(contact.custom_instruction||""),[lifecycle,setLifecycle]=useState(contact.lifecycle||"PROSPECT");
  const [maxFollowups,setMaxFollowups]=useState(Number(contact.max_followups??3));
  const [note,setNote]=useState(contact.note||""),[permissionEvidence,setPermissionEvidence]=useState("");
+ const [replyWindow,setReplyWindow]=useState(contact.reply_window_enabled||false);
+ const [replyStart,setReplyStart]=useState(contact.reply_window_start||"08:00");
+ const [replyEnd,setReplyEnd]=useState(contact.reply_window_end||"22:00");
+ const [cooldown,setCooldown]=useState(Number(contact.reply_cooldown_seconds??3));
+ const [maxReplyChars,setMaxReplyChars]=useState(Number(contact.max_reply_chars??350));
  const [confirmedConsent,setConfirmedConsent]=useState(false),[scope,setScope]=useState(contact.exclusion||"NONE");
  const [sub,setSub]=useState({...blankSub}),[paymentChecks,setPaymentChecks]=useState<Record<string,boolean>>({});
  const phoneReady=!!c.phone&&/^[1-9][0-9]{7,14}$/.test(c.phone)&&!c.chat_id.endsWith("@lid");
@@ -157,6 +164,22 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
          {[0,1,2,3].map(x=><option value={x} key={x}>{x} kali</option>)}
         </select>
        </label></section>
+      <section className="contactControlSection"><h3><Clock3 size={17}/> Jadwal dan tempo balasan</h3>
+       <label className="checkLine"><input type="checkbox" checked={replyWindow} onChange={e=>setReplyWindow(e.target.checked)}/>
+        Batasi jam pengiriman AI khusus kontak ini (WIB)</label>
+       {replyWindow&&<div className="contactProForm">
+        <label className="fieldLabel">Mulai<input className="input" type="time" value={replyStart} onChange={e=>setReplyStart(e.target.value)}/></label>
+        <label className="fieldLabel">Selesai<input className="input" type="time" value={replyEnd} onChange={e=>setReplyEnd(e.target.value)}/></label>
+       </div>}
+       <div className="contactProForm">
+        <label className="fieldLabel">Jeda respons (detik)<input className="input" type="number" min="0" max="120" value={cooldown} onChange={e=>setCooldown(Number(e.target.value))}/></label>
+        <label className="fieldLabel">Target panjang jawaban (karakter)<input className="input" type="number" min="80" max="1200" value={maxReplyChars} onChange={e=>setMaxReplyChars(Number(e.target.value))}/></label>
+       </div>
+       <p>Pesan AI di luar jam pengiriman akan menunggu, lalu diperiksa lagi sebelum dikirim. Balasan manual tidak dijadwalkan ulang.</p>
+       <button className="btn primary" disabled={busy} onClick={()=>void mutate({action:"reply_policy",enabled:replyWindow,start:replyStart,
+        end:replyEnd,cooldown,maxChars:maxReplyChars},"Jadwal dan jeda respons tersimpan.",
+        d=>setC(v=>({...v,...d})))}>Simpan jadwal</button>
+      </section>
       <section className="contactControlSection"><h3>Gaya AI & informasi pelanggan</h3>
        <label className="fieldLabel">Gaya jawaban<select className="input" value={style} onChange={e=>setStyle(e.target.value)}>
         <option value="CONSULTATIVE">Konsultatif dan sopan</option><option value="CONCISE">Singkat dan langsung</option>
