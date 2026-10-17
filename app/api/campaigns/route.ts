@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const view = q.get("view");
     const offset=Math.max(0,Math.min(100000,Number(q.get("offset"))||0));
     if(view==='exclusions')return Response.json({exclusions:await db('mc_contact_exclusions?select=phone,scope,reason,updated_at&order=updated_at.desc,phone&limit=50&offset='+offset)});
-    if (view === "contacts" || view === "selection") {
+    if (view === "contacts" || view === "selection" || view === "selection_all") {
       const search = (q.get("q") || "").replace(/[%_*,().]/g, "").slice(0, 80);
       if(view==='selection')return Response.json(await rpc('mc_campaign_contact_selection',{p_search:search}));
       if(view==='selection_all')return Response.json(await rpc('mc_campaign_select_all_visible',{p_search:search}));
