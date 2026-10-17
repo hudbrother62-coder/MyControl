@@ -310,7 +310,6 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
        <p>Pengingat mengikuti jadwal WIB yang dipilih, tidak dikirim apabila periode sudah dibayar atau layanan dihentikan. Pastikan aturan WhatsApp dan periode layanan berlaku.</p>
        <div className="actions"><button className="btn primary" disabled={busy} onClick={saveSubscription}>Simpan langganan</button>
         <button className="btn" disabled={busy} onClick={()=>setSub({...blankSub})}>Kosongkan</button></div>
-      </section>
       </details>
       <section className="contactControlSection"><h3>Riwayat pembayaran terverifikasi</h3>
        {(snapshot?.payments||[]).length===0?<p>Belum ada pembayaran terverifikasi.</p>:(snapshot?.payments||[]).map(x=><div className="contactProHistoryRow" key={x.id}>
@@ -337,13 +336,11 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
        <button className="btn primary" disabled={busy} onClick={()=>void mutate({action:"sales_profile",responseStyle:style,customInstruction:instruction,
          customerProfile:profile,lifecycle,maxFollowups},"Memori owner untuk AI tersimpan.",d=>setC(v=>({...v,...d})))}>
         Simpan profil AI</button>
-      </section>
       </details>
       <details className="contactControlSection"><summary>Catatan hanya untuk admin (opsional)</summary><h3>Catatan admin</h3>
        <textarea className="input" rows={3} maxLength={2000} value={note} onChange={e=>setNote(e.target.value)}/>
        <button className="btn" disabled={busy||note.trim()===(c.note||"")} onClick={()=>void mutate({action:"contact_preferences",note:note.trim()},
-        "Catatan admin disimpan.",d=>setC(v=>({...v,note:d.note})))}>Simpan catatan</button></section>
-      </details>
+        "Catatan admin disimpan.",d=>setC(v=>({...v,note:d.note})))}>Simpan catatan</button></details>
       <section className="contactControlSection"><h3>Memori riwayat percakapan</h3>
        <p className="contactProMemoryText">{snapshot?.memory?.summary||"Memori belum terisi. Riwayat chat tetap tersedia di Inbox."}</p>
        <small className="muted">Terakhir diperbarui: {dateWib(snapshot?.memory?.updated_at)}</small>
