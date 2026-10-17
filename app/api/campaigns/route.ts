@@ -16,6 +16,7 @@ export async function GET(req: Request) {
     if (view === "contacts" || view === "selection") {
       const search = (q.get("q") || "").replace(/[%_*,().]/g, "").slice(0, 80);
       if(view==='selection')return Response.json(await rpc('mc_campaign_contact_selection',{p_search:search}));
+      if(view==='selection_all')return Response.json(await rpc('mc_campaign_select_all_visible',{p_search:search}));
       return Response.json(await rpc('mc_contact_directory',{p_search:search,p_limit:50,p_offset:offset}));
     }
     if (view === "detail") {
@@ -88,8 +89,26 @@ export async function POST(req: Request) {
       );
     if (b.action === "create") {
       validateSteps(b.campaign?.steps);
+      const campaign = b.campaign;
+      if (!campaign || !Array.isArray(campaign.phones) || campaign.phones.length > 1000 ||
+          !Array.isArray(campaign.import_contacts || []) || (campaign.import_contacts || []).length > 1000 ||
+          !Array.isArray(campaign.excluded_phones || []) || (campaign.excluded_phones || []).length > 1000)
+        throw new Error("Daftar penerima tidak valid (maksimal 1.000)");
+      const phones = [...new Set(campaign.phones.map((v: unknown) => normalizePhone(String(v))))];
+      const imported = (campaign.import_contacts || []).map((c: any) => ({
+        phone: normalizePhone(c.phone), name: String(c.name || "").trim().slice(0, 100),
+        tags: String(c.tags || "").slice(0, 500), consent: c.consent === true,
+        consent_evidence: String(c.consent_evidence || "").slice(0, 500),
+      }));
+      if (imported.some((c: any) => !c.name || (c.consent && c.consent_evidence.trim().length < 12)))
+        throw new Error("Kontak impor perlu nama dan bukti izin bila promosi diizinkan");
+      const excluded = [...new Set((campaign.excluded_phones || []).map((v: unknown) => normalizePhone(String(v))))];
       return Response.json(
-        await rpc("mc_save_campaign", { p_campaign: b.campaign }),
+        await rpc("mc_save_campaign", {
+          p_campaign: {name:campaign.name,product_id:campaign.product_id,
+            steps:campaign.steps,bot_enabled:campaign.bot_enabled,phones,
+            import_contacts:imported,excluded_phones:excluded},
+        }),
       );
     }
     if (["START", "SCHEDULE", "PAUSE", "RESUME", "CANCEL"].includes(b.action))
