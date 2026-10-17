@@ -59,7 +59,7 @@ export default function Products() {
         <div>
           <h1>Produk & Pengetahuan AI</h1>
           <p>
-            Kelola pengetahuan resmi AI di sini. Perubahan tersimpan langsung ke database; spreadsheet menjadi referensi pengisian.
+            Produk dari spreadsheet disinkronkan ke Supabase dan langsung tersedia di My Control serta sumber pengetahuan AI.
           </p>
         </div>
         <div className="actions">
@@ -75,7 +75,13 @@ export default function Products() {
           </button>
         </div>
       </div>
-      <div className="notice section">AI membaca deskripsi, penjelasan lengkap, manfaat, dan link resmi. Harga 0 dianggap belum diisi, bukan gratis. Isi hanya informasi yang sudah dipastikan. Perubahan di spreadsheet tidak otomatis masuk web.</div>
+      <div className="notice section" role="status">
+        <b>Google Sheets → Supabase → Katalog web dan AI</b>
+        <p>{sheetState?.latest?"Sinkron terakhir: "+new Date(sheetState.latest.synced_at).toLocaleString("id-ID")+" · "+sheetState.latest.rows_updated+" produk.":"Memuat status sinkronisasi…"}</p>
+        {sheetState?.configured===false&&<p>Import awal sudah dilakukan. Untuk perubahan spreadsheet otomatis selanjutnya, pasang akses service account Google Sheets di Vercel dan berikan akses Viewer ke spreadsheet.</p>}
+        {syncError&&<p className="errorText">{syncError}</p>}
+        <small>Harga kosong bukan berarti gratis. Hanya produk ACTIVE yang ditawarkan AI.</small>
+      </div>
       {show && (
         <form className="card formGrid sectionless" onSubmit={submit}>
           <input
