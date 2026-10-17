@@ -1,13 +1,27 @@
 "use client";
 import StorePagination from "@/components/StorePagination";
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useStore, rupiah } from "@/components/Store";
 const sheet =
   "https://docs.google.com/spreadsheets/d/1IPnxqxjCNJE5rY1cXu88XCfZgApQ0u_NxjD-KoGF5VI/edit";
 export default function Products() {
   const s = useStore();
   const [show, setShow] = useState(false);
+  const [sheetState,setSheetState]=useState<{configured:boolean;sheet_id:string;latest?:{rows_updated:number;synced_at:string}}|null>(null);
+  const [syncBusy,setSyncBusy]=useState(false),[syncError,setSyncError]=useState("");
+  useEffect(()=>{fetch("/api/sheets/sync",{cache:"no-store"}).then(r=>r.json()).then(d=>{if(d.sheet_id)setSheetState(d)}).catch(()=>{})},[]);
+  async function syncSheet(){
+    setSyncBusy(true);setSyncError("");
+    try{
+      const r=await fetch("/api/sheets/sync",{method:"POST"});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"Sinkronisasi gagal");
+      await s.refresh();
+      const status=await fetch("/api/sheets/sync",{cache:"no-store"});
+      if(status.ok)setSheetState(await status.json());
+    }catch(e){setSyncError((e as Error).message)}finally{setSyncBusy(false)}
+  }
+
   const [f, setF] = useState({
     id: "",
     name: "",
@@ -50,6 +64,9 @@ export default function Products() {
         </div>
         <div className="actions">
           <Link className="btn" href="/campaigns/intelligence">Strategi promosi AI</Link>
+          <button className="btn" disabled={syncBusy||sheetState?.configured===false} onClick={()=>void syncSheet()}>
+           {syncBusy?"Menyinkronkan…":"Sinkronkan Google Sheet"}
+          </button>
           <a className="btn" href={sheet} target="_blank">
             Buka Spreadsheet
           </a>
