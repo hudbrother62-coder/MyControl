@@ -16,21 +16,7 @@ export async function GET(req: Request) {
     if (view === "contacts" || view === "selection") {
       const search = (q.get("q") || "").replace(/[%_*,().]/g, "").slice(0, 80);
       if(view==='selection')return Response.json(await rpc('mc_campaign_contact_selection',{p_search:search}));
-      const rows=await db(
-          "mc_campaign_contacts?select="+'phone,name,tags,consent,opted_out_at,created_at'+"&order=created_at.desc,phone&limit="+50+"&offset=" +
-            offset + ''+
-            (search
-              ? "&or=(name.ilike.*" +
-                encodeURIComponent(search) +
-                "*,phone.ilike.*" +
-                encodeURIComponent(search) +
-                "*,tags.ilike.*" +
-                encodeURIComponent(search) +
-                "*)"
-              : ""),
-        );
-      const exclusions=rows.length?await db('mc_contact_exclusions?select=phone,scope&phone=in.('+rows.map((c:any)=>c.phone).join(',')+')&limit=50'):[];
-      return Response.json({contacts:rows.map((c:any)=>({...c,exclusion:exclusions.find((e:any)=>e.phone===c.phone)?.scope||null}))});
+      return Response.json(await rpc('mc_contact_directory',{p_search:search,p_limit:50,p_offset:offset}));
     }
     if (view === "detail") {
       const id = uuid(q.get("id"));

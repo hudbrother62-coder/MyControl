@@ -1,5 +1,6 @@
 "use client";
 import { useStore } from "@/components/Store";
+import Link from "next/link";
 export default function Settings() {
   const s = useStore();
   return (
@@ -46,6 +47,10 @@ export default function Settings() {
         </div>
         <div className="card">
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Kontrol Sistem</h2>
+          <div className="settingRow">
+            <div><b>AI, bot, follow-up & pengecualian nomor</b><span>Semua aturan harian dikelola lewat panel web dan dibaca worker n8n.</span></div>
+            <Link className="btn primary" href="/automation">Atur sekarang</Link>
+          </div>
           <div className="settingRow">
             <div>
               <b>Akses owner</b>

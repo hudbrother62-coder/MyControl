@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import ContactExclusions from "@/components/ContactExclusions";
 import { useEffect, useState } from "react";
 type Settings = {
   bot_enabled: boolean;
@@ -86,7 +87,8 @@ export default function Automation() {
   }
   return (
     <>
-      <div className="notice section"><a className="btn" href="/api/campaigns/workflow?kind=all">Unduh workflow lengkap v3</a> <a className="btn" href="/contacts#pengecualian">Kontak yang dikecualikan</a></div>
+      <div className="notice section"><a className="btn" href="/api/campaigns/workflow?kind=all">Unduh workflow lengkap v3</a></div>
+      <ContactExclusions/>
       <div className="pageHead">
         <div>
           <h1>Kontrol Bot & Workflow</h1>

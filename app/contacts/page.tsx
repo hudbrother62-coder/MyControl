@@ -92,7 +92,7 @@ export default function Contacts() {
       <div className="pageHead">
         <div>
           <h1>Kontak</h1>
-          <p>Satu kontak, seluruh percakapan dan riwayat promosi.</p>
+          <p>Kontak otomatis muncul dari chat WhatsApp atau impor. Tidak perlu tambah ulang.</p>
         </div>
         <button className="btn primary" onClick={() => setShow(!show)}>
           + Import kontak
@@ -100,8 +100,8 @@ export default function Contacts() {
       </div>
       <div className="campaignMetrics">
         <div className="card">
-          <small>Kontak di halaman ini</small>
-          <strong>{contacts.length}</strong>
+          <small>Semua kontak terhubung</small>
+          <strong>{data?.total ?? contacts.length}</strong>
         </div>
         <div className="card">
           <small>Memiliki izin promosi</small>
@@ -246,9 +246,9 @@ export default function Contacts() {
               <tr key={c.phone}>
                 <td>
                   <b>{c.name}</b>
-                  <div className="muted">+{c.phone}</div>
+                  <div className="muted">{c.phone ? "+" + c.phone : "ID WhatsApp: " + c.chat_id}</div>
                 </td>
-                <td>{c.tags || "—"}</td>
+                <td>{c.tags || (c.origin === "WHATSAPP" ? "Dari WhatsApp" : "Impor")}</td>
                 <td>
                   <span
                     className={
@@ -267,12 +267,12 @@ export default function Contacts() {
                     <Link
                       className="btn"
                       href={
-                        "/inbox?chat=" + encodeURIComponent(c.phone + "@c.us")
+                        "/inbox?chat=" + encodeURIComponent(c.chat_id || c.phone + "@c.us")
                       }
                     >
                       Chat
                     </Link>
-                    {c.consent && (
+                    {c.consent && c.phone && (
                       <button
                         className="linkBtn dangerText"
                         onClick={async () => {
@@ -300,7 +300,7 @@ export default function Contacts() {
           <div className="empty">
             {loading
               ? "Memuat kontak…"
-              : "Belum ada kontak yang cocok. Import untuk mulai."}
+              : "Belum ada kontak yang cocok. Percakapan WhatsApp akan terdaftar otomatis."}
           </div>
         )}
       </div>
