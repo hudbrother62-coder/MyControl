@@ -56,6 +56,10 @@ async function sync(){
 }
 export async function GET(req:Request){
  try{
+  const cronToken=process.env.CRON_SECRET;
+  if(cronToken && req.headers.get("authorization")==="Bearer "+cronToken){
+    return Response.json(await sync(),{headers:{"Cache-Control":"no-store"}});
+  }
   authorize(req);
   const status=await db("mc_sheet_sync_runs?select=sheet_id,rows_updated,synced_at,source&order=synced_at.desc&limit=1");
   return Response.json({sheet_id:getSheetId(),configured:configured(),latest:status[0]||null},{
