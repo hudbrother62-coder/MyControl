@@ -1301,3 +1301,23 @@ body.dark .taskRowIcon { background:var(--soft); }
  .contactProBody .contactControlActions{justify-content:stretch;}
  .contactProBody .contactControlActions>*{flex:1;}
 }
+
+
+/* Single page campaign editor, mobile first */
+.onePageCampaign{padding:20px;}
+.oneCampaignGrid{display:grid;gap:16px;}
+.oneCampaignBlock{border:1px solid var(--line);border-radius:13px;padding:19px;min-width:0;}
+.oneCampaignBlock>h3{font-size:15px;margin:0 0 16px;}
+.oneCampaignBlock .formGrid{grid-template-columns:repeat(2,minmax(0,1fr));}
+.oneCampaignBlock .campaignCompose{grid-template-columns:minmax(0,1.1fr) minmax(220px,.9fr);}
+.oneCampaignBlock .recipientPicker{max-height:230px;overflow:auto;}
+.oneCampaignBlock .muted{font-size:12px;line-height:1.6;}
+.onePageCampaign .campaignStepper{display:none;}
+@media(max-width:760px){.onePageCampaign{padding:14px;}.oneCampaignBlock{padding:13px;}
+ .oneCampaignBlock .formGrid,.oneCampaignBlock .campaignCompose{grid-template-columns:1fr;}
+ .oneCampaignBlock .campaignToolbar{display:flex;flex-wrap:wrap;}
+ .oneCampaignBlock .campaignToolbar .input{flex:1 1 100%;min-width:0;}
+ .onePageCampaign .actions{display:flex;flex-wrap:wrap;gap:8px;}
+ .onePageCampaign .actions>.btn{flex:1;}
+ .onePageCampaign .input,.onePageCampaign textarea,.onePageCampaign select{font-size:16px;max-width:100%;min-width:0;}
+}
