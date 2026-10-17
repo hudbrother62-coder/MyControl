@@ -10,7 +10,7 @@ async function allowed(kind) {
 test.before(async () => {
   pg = new PGlite();
   await pg.exec("create role anon; create role authenticated; create role service_role; create table bot_settings(key text primary key,value jsonb);");
-  for (const name of ["001_queue", "002_reliability", "003_business_sync", "005_campaigns", "006_web_controls", "008_contact_exclusions", "012_individual_contact_controls"]) {
+  for (const name of ["001_queue", "002_reliability", "003_business_sync", "005_campaigns", "006_web_controls", "008_contact_exclusions", "012_individual_contact_controls", "013_preserve_timed_pause_on_manual_reply"]) {
     await pg.exec(fs.readFileSync("database/" + name + ".sql", "utf8").replace("create extension if not exists pgcrypto;", ""));
   }
   await pg.exec("insert into bot_settings(key,value) values('bot_enabled','true'),('ai_auto_reply','true') on conflict(key) do update set value=excluded.value");
@@ -58,6 +58,16 @@ test("resume does not override follow-up OFF and an indefinite pause persists", 
   await pg.query("select mc_set_contact_bot_pause($1,0)",[chat]);
   assert.equal(await allowed("AI_REPLY"),true);
   assert.equal(await allowed("FOLLOW_UP"),false);
+});
+test("manual owner reply during a timed pause preserves its expiry and can be queued",async()=>{
+  await pg.query("select mc_set_contact_bot_pause($1,15)",[chat]);
+  const before=(await pg.query("select human_takeover_until from mc_lead_state where chat_id=$1",[chat])).rows[0].human_takeover_until;
+  const result=(await pg.query("select mc_manual_send($1,'Saya bantu ya','manual-pause-test-12345678') r",[chat])).rows[0].r;
+  const after=(await pg.query("select human_takeover_until from mc_lead_state where chat_id=$1",[chat])).rows[0].human_takeover_until;
+  assert.equal(result.status,"QUEUED");
+  assert.equal(String(before),String(after));
+  assert.equal(await allowed("MANUAL"),true);
+  assert.equal(await allowed("AI_REPLY"),false);
 });
 test("browser roles cannot bypass owner-only per-contact controls",async()=>{
   for(const signature of ["mc_set_contact_bot_pause(text,integer)","mc_set_contact_preferences(text,boolean,text,text)","mc_contact_directory(text,integer,integer)"]){
