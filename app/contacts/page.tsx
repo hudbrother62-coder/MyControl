@@ -264,7 +264,7 @@ export default function Contacts() {
                         : "Belum ada izin"}
                   </span>
                 </td>
-                <td><span className={"badge " + (c.exclusion === "ALL_AUTOMATION" || contactAiPaused(c.pause_until) ? "warn" : "ok")}>{c.exclusion === "ALL_AUTOMATION" ? "Dikecualikan" : contactAiPaused(c.pause_until) ? "AI dijeda" : "AI diizinkan"}</span></td>
+                <td><span className={"badge " + (c.exclusion === "ALL_AUTOMATION" || contactAiPaused(c.pause_until) || c.automation_mode === "MANUAL" ? "warn" : "ok")}>{c.exclusion === "ALL_AUTOMATION" ? "Dikecualikan" : c.automation_mode === "MANUAL" ? "Admin Manual" : contactAiPaused(c.pause_until) ? "AI dijeda" : c.automation_mode === "HYBRID" ? "Hybrid" : "AI diizinkan"}</span></td>
                 <td>
                   <div className="actions">
                     <button className="btn primary" onClick={() => setManagedContact(c)}>Atur Bot</button>
