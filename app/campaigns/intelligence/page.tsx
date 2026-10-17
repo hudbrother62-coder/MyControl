@@ -6,7 +6,7 @@ import { BookOpen, ChevronLeft, CheckCircle2, Clock3, Megaphone, RefreshCw, Shie
 type Product={id:string;name:string;status:string;base_price:number;short_description:string|null;full_description:string|null;benefits:string|null};
 type Guide={product_id:string;target_customers:string;customer_problems:string;key_benefits:string;verified_features:string;differentiators:string;use_cases:string;objections:string;proof_points:string;limitations:string;next_step:string};
 type Offer={id:string;product_id:string;name:string;discount_type:"FIXED"|"PERCENT";discount_value:number;start_at:string|null;end_at:string|null;notes:string|null;active:boolean};
-const descriptions:[
+const descriptions = [
   ["target_customers","Untuk siapa produk ini?","Contoh: pemilik usaha, HR, admin penggajian. Tulis sasaran spesifik."],
   ["customer_problems","Masalah pelanggan yang dibantu","Masalah sebelum memakai produk. Bukan daftar fitur."],
   ["key_benefits","Manfaat & hasil yang realistis","Hubungkan masalah pelanggan → manfaat. Hindari janji hasil pasti."],
