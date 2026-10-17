@@ -1224,3 +1224,37 @@ body.dark .taskRowIcon { background:var(--soft); }
   .contactControlFooter .actions { width:100%; }
   .contactControlFooter .actions > * { flex:1; text-align:center; justify-content:center; }
 }
+
+
+/* Product-sales intelligence: a compact editorial workspace, not a blast dashboard. */
+.salesBrain .pageHead .linkBtn { display:inline-flex; align-items:center; gap:4px; margin-bottom:13px; }
+.brainToolbar { display:flex; align-items:end; justify-content:space-between; gap:16px; }
+.brainToolbar .fieldLabel { flex:1; max-width:620px; }
+.brainProductMeta { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--muted); padding-bottom:8px; }
+.brainTabs { display:flex; align-items:center; gap:8px; margin:18px 0; flex-wrap:wrap; }
+.brainTabs .btn { display:inline-flex; align-items:center; gap:8px; }
+.brainMain { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(275px,.85fr); align-items:start; gap:16px; margin-bottom:30px; }
+.brainEditor,.brainPreview { padding:24px; min-width:0; }
+.brainEditor { display:flex; flex-direction:column; gap:15px; }
+.brainEditor .sectionTitle { margin-bottom:4px; }
+.brainEditor .fieldLabel { display:flex; flex-direction:column; gap:6px; }
+.brainEditor .fieldLabel small { font-weight:400; line-height:1.55; }
+.brainEditor textarea { resize:vertical; min-height:70px; }
+.brainPreview h2 { display:flex; align-items:center; gap:9px; font-size:17px; margin:0 0 13px; }
+.brainPreview h3 { font-size:13px; margin:20px 0 10px; }
+.brainPreview > p { line-height:1.6; }
+.brainReady { margin:15px 0; padding:14px; border:1px solid var(--line); border-radius:11px; }
+.brainReady > b { display:block; margin-bottom:10px; font-size:12px; }
+.brainProgress { height:7px; background:var(--soft); overflow:hidden; border-radius:6px; }
+.brainProgress > span { display:block; height:100%; background:var(--accent); transition:width .2s; }
+.brainExample { padding:14px 0; border-top:1px solid var(--line); }
+.brainExample small { display:block; font-weight:750; color:var(--muted); font-size:10px; }
+.brainExample p { margin:8px 0 0; font-size:12px; line-height:1.55; overflow-wrap:anywhere; white-space:pre-line; }
+.brainPreview .notice { display:flex; gap:8px; align-items:flex-start; font-size:11px; }
+.brainOffer { padding:14px 0; border-top:1px solid var(--line); }
+.brainOffer .sectionTitle { align-items:flex-start; gap:8px; }
+.brainOffer .sectionTitle b { overflow-wrap:anywhere; }
+.brainOffer p { margin:10px 0; font-size:12px; line-height:1.6; }
+.brainOffer .actions { margin-top:10px; }
+@media(max-width:900px){.brainMain{grid-template-columns:1fr}.brainToolbar{align-items:stretch;flex-direction:column}.brainProductMeta{padding:0}}
+@media(max-width:640px){.brainEditor,.brainPreview{padding:17px}.brainTabs .btn{flex:1;justify-content:center}.brainEditor .formGrid{grid-template-columns:1fr}.brainEditor .actions{flex-wrap:wrap}.brainEditor .actions .btn{flex:1}}

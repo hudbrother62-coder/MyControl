@@ -1,5 +1,6 @@
 "use client";
 import StorePagination from "@/components/StorePagination";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useStore, rupiah } from "@/components/Store";
 const sheet =
@@ -48,6 +49,7 @@ export default function Products() {
           </p>
         </div>
         <div className="actions">
+          <Link className="btn" href="/campaigns/intelligence">Strategi promosi AI</Link>
           <a className="btn" href={sheet} target="_blank">
             Buka Spreadsheet
           </a>

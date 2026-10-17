@@ -140,10 +140,7 @@ export default function CampaignEditor({
               ))}
             </select>
           </label>
-          <div className="notice span2">
-            Balasan akan membawa konteks produk ini ke Kendaliku. Harga dan
-            tautan tetap mengambil katalog produk.
-          </div>
+          <div className="notice span2">AI membaca pengetahuan produk dan Playbook Penjualan dari sumber resmi. Materi kampanye bukan pengganti fakta produk. <Link href="/campaigns/intelligence">Lengkapi manfaat, target pembeli, dan penanganan keberatan →</Link></div>
         </div>
       )}
       {step === 1 && (

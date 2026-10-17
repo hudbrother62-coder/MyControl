@@ -260,10 +260,11 @@ export default function Campaigns() {
     <>
       <div className="pageHead">
         <div>
-          <h1>Kampanye WhatsApp</h1>
-          <p>Kirim promosi, tangani balasan, pantau hasil per kontak.</p>
+          <h1>Kampanye & Promosi</h1>
+          <p>Kelola penawaran, bekali AI dengan pengetahuan produk, dan pantau pengiriman.</p>
         </div>
         <div className="actions">
+          <Link className="btn" href="/campaigns/intelligence">Materi Promosi & Otak AI</Link>
           <button
             className="btn"
             onClick={async () => {
