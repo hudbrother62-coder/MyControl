@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import ContactExclusions from "@/components/ContactExclusions";
+import ContactBotControls, { contactAiPaused } from "@/components/ContactBotControls";
 import { useMemo, useState } from "react";
 import { campaignRequest, parseContacts } from "@/lib/campaigns";
 import { useCampaignData } from "@/components/useCampaignData";
@@ -19,6 +20,7 @@ export default function Contacts() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [show, setShow] = useState(false);
+  const [managedContact, setManagedContact] = useState<any>(null);
   const contacts = data?.contacts || [];
   const eligible = useMemo(
     () => contacts.filter((c: any) => c.consent && !c.opted_out_at && !c.exclusion).length,
@@ -88,11 +90,10 @@ export default function Contacts() {
   }
   return (
     <>
-      <ContactExclusions/>
       <div className="pageHead">
         <div>
           <h1>Kontak</h1>
-          <p>Kontak otomatis muncul dari chat WhatsApp atau impor. Tidak perlu tambah ulang.</p>
+          <p>Atur AI, durasi jeda, follow-up, dan catatan untuk setiap pelanggan.</p>
         </div>
         <button className="btn primary" onClick={() => setShow(!show)}>
           + Import kontak
@@ -238,14 +239,15 @@ export default function Contacts() {
               <th>Kontak</th>
               <th>Label</th>
               <th>Promosi</th>
+              <th>Status AI</th>
               <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {contacts.map((c: any) => (
-              <tr key={c.phone}>
+              <tr key={c.chat_id}>
                 <td>
-                  <b>{c.name}</b>
+                  <b>{c.name}</b>{c.priority === "IMPORTANT" && <span className="badge warn" style={{ marginLeft: 8 }}>Penting</span>}
                   <div className="muted">{c.phone ? "+" + c.phone : "ID WhatsApp: " + c.chat_id}</div>
                 </td>
                 <td>{c.tags || (c.origin === "WHATSAPP" ? "Dari WhatsApp" : "Impor")}</td>
@@ -262,8 +264,10 @@ export default function Contacts() {
                         : "Belum ada izin"}
                   </span>
                 </td>
+                <td><span className={"badge " + (c.exclusion === "ALL_AUTOMATION" || contactAiPaused(c.pause_until) ? "warn" : "ok")}>{c.exclusion === "ALL_AUTOMATION" ? "Dikecualikan" : contactAiPaused(c.pause_until) ? "AI dijeda" : "AI diizinkan"}</span></td>
                 <td>
                   <div className="actions">
+                    <button className="btn primary" onClick={() => setManagedContact(c)}>Atur Bot</button>
                     <Link
                       className="btn"
                       href={
@@ -321,6 +325,10 @@ export default function Contacts() {
           Berikutnya
         </button>
       </div>
+      <ContactExclusions/>
+      {managedContact && (
+        <ContactBotControls key={managedContact.chat_id} contact={managedContact} onClose={() => setManagedContact(null)} onSaved={refresh} />
+      )}
     </>
   );
 }

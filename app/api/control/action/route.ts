@@ -26,6 +26,32 @@ export async function POST(req: Request) {
       return Response.json({ ok: true, conversationId: phone + "@c.us" });
     }
     const chat = await chatId(String(b.conversationId || ""));
+    if (b.action === "contact_pause") {
+      if (!Number.isInteger(b.minutes) || ![-1, 0, 15, 60, 480, 1440, 10080].includes(b.minutes))
+        throw new Error("Durasi jeda tidak valid");
+      return Response.json(await rpc("mc_set_contact_bot_pause", {
+        p_chat_id: chat,
+        p_minutes: b.minutes,
+      }));
+    }
+    if (b.action === "contact_preferences") {
+      const args: Record<string, unknown> = { p_chat_id: chat };
+      if (Object.hasOwn(b, "followupEnabled")) {
+        if (typeof b.followupEnabled !== "boolean") throw new Error("Follow-up tidak valid");
+        args.p_followup_enabled = b.followupEnabled;
+      }
+      if (Object.hasOwn(b, "priority")) {
+        if (!["NORMAL", "IMPORTANT"].includes(b.priority)) throw new Error("Prioritas tidak valid");
+        args.p_priority = b.priority;
+      }
+      if (Object.hasOwn(b, "note")) {
+        if (typeof b.note !== "string" || b.note.length > 2000)
+          throw new Error("Catatan maksimal 2000 karakter");
+        args.p_note = b.note.trim();
+      }
+      if (Object.keys(args).length === 1) throw new Error("Tidak ada perubahan");
+      return Response.json(await rpc("mc_set_contact_preferences", args));
+    }
     if (b.action === "lead") {
       const statuses = [
         "NEW",
