@@ -20,7 +20,7 @@ type Snapshot={subscriptions:Subscription[];payments:{id:string;subscription_id:
  memory:{summary?:string;updated_at?:string};consent:{consent?:boolean;consent_at?:string;source?:string;opted_out_at?:string};
  products:{id:string;name:string}[];
  auto_insights?:{source:string;product_name?:string;contact_product_id?:string;product_confidence?:string;
- suggested_response_style?:string;inferred_lifecycle?:string;latest_customer_message?:string;
+ suggested_response_style?:string;inferred_lifecycle?:string;latest_customer_message?:string;mentioned_package_unverified?:string;
  conversation_excerpt?:string;lead_status?:string;crm_stage?:string;subscription?:{plan_name?:string;amount?:number;due_at?:string;status?:string}};
  verified_orders?:{id:string;product_id:string;product_name:string;total:number;paid_at:string;status:string}[];
 };
@@ -150,6 +150,7 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
         <div><small>Status pelanggan</small><b>{lifecycleLabels[auto?.inferred_lifecycle||""]||"Prospek"}</b></div>
        </div>
        <p>{auto?.latest_customer_message?"Pesan terakhir: “"+auto.latest_customer_message+"”":"Belum ada pesan pelanggan yang bisa dianalisis."}</p>
+       {auto?.mentioned_package_unverified&&<p><b>Paket yang disebut pelanggan:</b> {auto.mentioned_package_unverified} <small>(belum terverifikasi)</small></p>}
        <small className="muted">AI tetap sopan. Minat dan gaya disimpulkan dari percakapan; status bayar harus diverifikasi.</small>
       </div>
       <section className="contactControlSection"><h3><UserRoundCog size={17}/> Mode operasional</h3>
