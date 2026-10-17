@@ -46,7 +46,7 @@ function parseImportedRows(rows:string[][]){
  if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per kampanye");
  return {contacts,errors,duplicates};
 }
-export default function CampaignEditor({products,onDone,onClose}:{products:any[];onDone:(id:string)=>void;onClose:()=>void}){
+export default function CampaignEditor({products,onDone,onClose,videoSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean}){
  const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<"existing"|"excel">("existing");
  const {data,error:loadError,loading}=useCampaignData("?view=contacts&q="+encodeURIComponent(search)+"&offset="+offset);
  const [name,setName]=useState(""),[product,setProduct]=useState(""),[selected,setSelected]=useState<string[]>([]);
@@ -230,6 +230,9 @@ export default function CampaignEditor({products,onDone,onClose}:{products:any[]
        <option value="TEXT">Teks WhatsApp</option><option value="VIDEO">Video MP4 dengan caption</option></select>
       </label>
       {step.type==="VIDEO"&&<div className="campaignVideoUploader">
+       {!videoSupported&&<div className="notice">
+         Video bisa diunggah dan disimpan sebagai draft. Worker WAHA belum mengonfirmasi kemampuan video; kirim video uji ke nomor owner terlebih dahulu. Kampanye massal hanya dapat dimulai setelah uji video diterima gateway.
+       </div>}
        <label className="fieldLabel">Unggah MP4 dari laptop atau HP (maks. 25 MB)
         <input type="file" className="input" accept=".mp4,video/mp4" disabled={busy}
          onChange={e=>void upload(i,e.target.files?.[0])}/></label>
