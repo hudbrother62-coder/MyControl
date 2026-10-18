@@ -371,6 +371,7 @@ export default function Campaigns() {
       {editor ? (
         <CampaignEditor
           videoSupported={Boolean(runtime?.video_supported && online)}
+          imageSupported={Boolean(runtime?.image_supported && online)}
           products={data?.products || []}
           onClose={() => setEditor(false)}
           onDone={(id) => {
