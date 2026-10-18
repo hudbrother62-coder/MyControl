@@ -104,34 +104,38 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
  function addManualRows(){
   setManualRows(rows=>rows.length>=1000?rows:[...rows,...Array.from({length:Math.min(5,1000-rows.length)},()=>newManualRow(nextManualId.current++))]);
  }
+ function readManualRows(){
+  const contacts:ImportContact[]=[];
+  const seen=new Set<string>();
+  for(const [index,row] of manualRows.entries()){
+   if(!row.name.trim()&&!row.phone.trim()&&!row.tags.trim()&&!row.consent&&!row.consent_evidence.trim())continue;
+   const name=row.name.trim();
+   if(!name||name.length>100)throw new Error("Kontak manual baris "+(index+1)+": nama wajib 1–100 karakter");
+   let phone:string;
+   try{phone=normalizePhone(row.phone)}catch{throw new Error("Kontak manual baris "+(index+1)+": nomor WhatsApp tidak valid")}
+   if(seen.has(phone))throw new Error("Kontak manual baris "+(index+1)+": nomor ganda dalam tabel");
+   seen.add(phone);
+   const proof=row.consent_evidence.trim();
+   if(row.consent&&proof.length<12)throw new Error("Kontak manual baris "+(index+1)+": isi bukti izin promosi minimal 12 karakter, atau matikan pilihan izin");
+   contacts.push({phone,name,tags:row.tags.trim().slice(0,500),consent:row.consent,consent_evidence:row.consent?proof.slice(0,500):""});
+  }
+  return contacts;
+ }
  function prepareManual(){
   setError("");setManualNotice("");
   try{
-   const result:ImportContact[]=[];
-   const seen=new Set<string>();
-   for(const [index,row] of manualRows.entries()){
-    if(!row.name.trim()&&!row.phone.trim()&&!row.tags.trim()&&!row.consent&&!row.consent_evidence.trim())continue;
-    const name=row.name.trim();
-    if(!name||name.length>100)throw new Error("Baris "+(index+1)+": nama wajib 1–100 karakter");
-    let phone:string;
-    try{phone=normalizePhone(row.phone)}catch{throw new Error("Baris "+(index+1)+": nomor WhatsApp tidak valid")}
-    if(seen.has(phone))throw new Error("Baris "+(index+1)+": nomor terduplikasi dalam tabel");
-    seen.add(phone);
-    const proof=row.consent_evidence.trim();
-    if(row.consent&&proof.length<12)throw new Error("Baris "+(index+1)+": bukti izin promosi minimal 12 karakter");
-    result.push({phone,name,tags:row.tags.trim().slice(0,500),consent:row.consent,consent_evidence:row.consent?proof.slice(0,500):""});
-   }
+   const result=readManualRows();
    if(!result.length)throw new Error("Isi setidaknya satu kontak manual");
    const merged=new Map(manualContacts.map(c=>[c.phone,c]));
    for(const c of result)merged.set(c.phone,c);
-   if(merged.size>1000)throw new Error("Maksimal 1.000 kontak manual per kampanye");
+   if(merged.size>1000)throw new Error("Maksimal 1.000 kontak manual per Blash");
    const nextSelection=Array.from(new Set([...selected,...result.map(c=>c.phone)]));
-   if(nextSelection.length>1000)throw new Error("Maksimal 1.000 penerima per kampanye. Hapus beberapa pilihan terlebih dahulu.");
+   if(nextSelection.length>1000)throw new Error("Maksimal 1.000 penerima per Blash. Hapus beberapa pilihan terlebih dahulu.");
    setManualContacts(Array.from(merged.values()));
    setSelected(nextSelection);
-   setManualNotice(result.length+" kontak berhasil dimasukkan ke daftar penerima dan dipilih. Belum disimpan ke database hingga draft kampanye disimpan.");
+   setManualNotice(result.length+" kontak siap dan dipilih. Saat menyimpan draft, kontak ini juga ikut tersimpan.");
    setManualRows(Array.from({length:5},()=>newManualRow(nextManualId.current++)));
-  }catch(e){setError((e as Error).message)}
+  }catch(e){setError((e as Error).message);setRecipientSource("manual")}
  }
  async function loadExcel(file?:File){
   if(!file)return;
@@ -187,24 +191,34 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}
  }
  async function save(){
+  if(busy)return;
   setBusy(true);setError("");
   try{
-   if(!name.trim()||!product)throw new Error("Isi nama kampanye dan produk");
-   if(!selected.length)throw new Error("Pilih minimal satu nomor penerima");
+   if(!name.trim()||!product)throw new Error("Isi nama Blash dan produk");
+   // Read unsaved manual rows as part of Save: users need not click a separate Add button.
+   const pending=readManualRows();
+   const selectedPhones=Array.from(new Set([...selected,...pending.map(c=>c.phone)]));
+   if(!selectedPhones.length)throw new Error("Tambahkan kontak manual atau pilih minimal satu penerima");
+   if(selectedPhones.length>1000)throw new Error("Maksimal 1.000 penerima per Blash");
+   const imports=new Map(allImported.map(c=>[c.phone,c]));
+   for(const c of pending)imports.set(c.phone,c);
+   const included=Array.from(imports.values()).filter(c=>selectedPhones.includes(c.phone));
+   if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
-   const r=await campaignRequest({action:"create",campaign:{name:name.trim(),product_id:product,phones:selected,
-    import_contacts:importedSelected,excluded_phones:excluded.filter(x=>selected.includes(x)),steps,bot_enabled:bot}});
+   const r=await campaignRequest({action:"create",campaign:{name:name.trim(),product_id:product,phones:selectedPhones,
+    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:bot}});
    onDone(r.id);
-  }catch(e){setError((e as Error).message)}finally{setBusy(false)}
+  }catch(e){setError((e as Error).message);if((e as Error).message.includes("Kontak manual"))setRecipientSource("manual")}
+  finally{setBusy(false)}
  }
  return <section className="card campaignEditor onePageCampaign">
-  <div className="sectionTitle"><div><h2>Buat kampanye</h2>
+  <div className="sectionTitle"><div><h2>Buat Blash</h2>
    <p className="muted">Semua data dalam satu halaman · simpan draft dahulu, uji pengiriman sebelum memulai.</p>
   </div><button className="btn" type="button" onClick={onClose}>Tutup</button></div>
   <div className="oneCampaignGrid">
-   <section className="oneCampaignBlock"><h3>1. Produk dan nama kampanye</h3>
+   <section className="oneCampaignBlock"><h3>1. Produk dan nama Blash</h3>
     <div className="formGrid">
-     <label className="fieldLabel">Nama kampanye<input className="input" maxLength={120} value={name}
+     <label className="fieldLabel">Nama Blash<input className="input" maxLength={120} value={name}
       onChange={e=>setName(e.target.value)} placeholder="Contoh: Promosi Gajian Pro"/></label>
      <label className="fieldLabel">Produk<select className="input" value={product} onChange={e=>setProduct(e.target.value)}>
       <option value="">Pilih produk</option>{products.map(p=><option key={p.source_key} value={p.source_key}>
@@ -237,7 +251,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
     </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
      <div className="campaignManualHeading"><div><b>Tambah kontak manual</b>
-      <p className="muted">Isi hingga lima kontak sekaligus. Tambah baris bila perlu, lalu masukkan ke daftar penerima.</p></div>
+      <p className="muted">Isi lima kontak sekaligus. Baris yang terisi otomatis ikut saat Simpan Draft; tombol Tambahkan hanya untuk menyiapkan lebih banyak baris.</p></div>
       <span className="badge">{manualRows.length} baris</span></div>
      <div className="campaignManualRows">
       {manualRows.map((row,index)=><div className="campaignManualRow" key={row.id}>
@@ -261,10 +275,11 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
      </div>
      <div className="campaignManualActions">
       <button className="btn" type="button" disabled={manualRows.length>=1000} onClick={addManualRows}>+ 5 baris</button>
-      <button className="btn primary" type="button" onClick={prepareManual}>Masukkan ke penerima</button>
+      <button className="btn primary" type="button" onClick={prepareManual}>Tambahkan ke daftar</button>
      </div>
      {manualNotice&&<div className="notice" role="status">{manualNotice}</div>}
-     <p className="muted">Kontak baru tidak otomatis dimasukkan ke Kontak Utama. Tanpa izin promosi yang tercatat, nomor tidak akan dikirimi kampanye.</p>
+     {error&&<div className="notice errorNotice" role="alert">{error}</div>}
+     <p className="muted">Kontak baru masuk sebagai calon penerima Blash, bukan otomatis ke Kontak Utama. Centang izin hanya jika pelanggan memang menyetujui promosi dan sertakan bukti nyata. Tanpa izin, draft tetap boleh disimpan tetapi pengiriman akan dilewati.</p>
     </div>}
     <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
@@ -365,16 +380,16 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
      <span><b>AI menangani balasan pelanggan</b><small>Kontrol AI per kontak dan aturan owner tetap berlaku.</small></span></label>
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
-     <div><small>Penerima</small><b>{selected.length}</b></div>
-     <div><small>Dilewati</small><b>{excluded.filter(x=>selected.includes(x)).length}</b></div>
+     <div><small>Penerima disiapkan</small><b>{new Set([...selected,...manualRows.filter(x=>x.name.trim()&&x.phone.trim()).map(x=>x.phone)]).size}</b></div>
+     <div><small>Kontak berizin saat ini</small><b>{eligibleVisible}</b></div>
      <div><small>Format</small><b>{steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
     </div>
-    <div className="notice">Kampanye disimpan sebagai draft. Uji terlebih dahulu dan pastikan worker WAHA mendukung video. Pemeriksaan izin serta pengecualian dilakukan ulang sebelum pengiriman.</div>
+    <div className="notice">Blash disimpan sebagai draft, termasuk kontak manual yang masih diisi. Pengiriman membutuhkan izin promosi yang valid dan uji ke nomor sendiri. Video baru boleh dikirim massal setelah uji video diterima gateway.</div>
    </section>
   </div>
   {(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}
   <div className="actions section"><button className="btn primary" disabled={busy}
-   onClick={()=>void save()}>{busy?"Memproses…":"Simpan draft kampanye"}</button>
+   onClick={()=>void save()}>{busy?"Menyimpan…":"Simpan draft Blash (termasuk kontak manual)"}</button>
    <button className="btn" onClick={onClose}>Batal</button></div>
  </section>;
 }
