@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { campaignLabels as labels, campaignRequest } from "@/lib/campaigns";
 import { useCampaignData } from "@/components/useCampaignData";
@@ -19,12 +19,19 @@ function Detail({
     [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false),
     [schedule, setSchedule] = useState(""),
+    [sendMode, setSendMode] = useState<"NOW"|"LATER">("NOW"),
     [testPhone, setTestPhone] = useState(""),
     [confirm, setConfirm] = useState("");
   const c = data?.campaign;
   const readiness = data?.readiness;
   const testReady = readiness?.test_status === "SENT";
   const eligibleCount = readiness?.eligible_total ?? 0;
+  const testPending = ["PENDING","PROCESSING","RETRY"].includes(readiness?.test_status);
+  useEffect(()=>{
+    if(!testPending)return;
+    const timer=setInterval(()=>{if(document.visibilityState==="visible")void refresh()},3000);
+    return()=>clearInterval(timer);
+  },[testPending,refresh]);
   async function action(action: string) {
     if (busy) return;
     setBusy(true);
@@ -32,8 +39,8 @@ function Detail({
     setNotice("");
     try {
       if (action === "START" || action === "SCHEDULE") {
-        if (!readiness?.worker_online) throw new Error("Worker Blash n8n/WAHA belum aktif. Periksa Integrasi.");
-        if (readiness?.has_image && !readiness?.image_supported) throw new Error("Workflow n8n lama belum mendukung poster. Impor workflow terbaru dari tautan di bagian kesiapan pengiriman.");
+        if (!readiness?.worker_online) throw new Error("Pengirim belum terhubung. Buka Integrasi untuk memeriksa koneksi.");
+        if (readiness?.has_image && !readiness?.image_supported) throw new Error("Pengirim gambar belum siap. Periksa koneksi di Integrasi.");
         if (!testReady) throw new Error("Kirim uji ke nomor WhatsApp milikmu terlebih dahulu, lalu tunggu status Diterima gateway. Status uji sekarang: " + (readiness?.test_status || "belum ada") + ".");
         if (eligibleCount < 1) throw new Error("Tidak ada penerima yang memiliki izin promosi. Buka Menu Kontak, catat izin yang benar-benar diberikan pelanggan, atau buat Blash baru dengan kontak manual berizin.");
       }
@@ -65,9 +72,9 @@ function Detail({
     setNotice("");
     try {
       if(readiness?.has_image && !readiness?.image_supported)
-        throw new Error("Pengiriman uji poster belum dapat dilakukan karena workflow n8n aktif masih versi lama. Perbarui workflow outbound terlebih dahulu.");
+        throw new Error("Pengirim gambar belum siap. Periksa koneksi di Integrasi.");
       await campaignRequest({ action: "test", id, phone: testPhone });
-      setNotice("Pesan uji masuk antrean. Tunggu status Diterima gateway dan cek video di WhatsApp milikmu sebelum memulai Blash.");
+      setNotice("Pesan percobaan sedang dikirim. Status diperbarui otomatis. Cek juga WhatsApp di nomor tujuan.");
       await refresh();
       onChange();
     } catch (e) {
@@ -129,20 +136,24 @@ function Detail({
       </div>
       {c.status === "DRAFT" && (
         <>
-          <div className="campaignReadiness section" role="status">
-            <strong>Siapkan pengiriman Blash</strong>
+          <div className="blashNextStep section" role="status">
+            <strong>{testReady ? "Percobaan diterima pengirim" : testPending ? "Mengirim pesan percobaan…" : "Draft tersimpan. Coba pesannya dahulu."}</strong>
+            <p>{testReady ? "Cek hasilnya di WhatsApp, lalu pilih waktu pengiriman di bawah." : testPending ? "Status diperbarui otomatis setiap beberapa detik." : "Masukkan nomor WhatsApp milikmu. Hanya nomor itu yang menerima percobaan."}</p>
+          </div>
+          <details className="campaignReadiness section">
+            <summary>Periksa kesiapan pengiriman</summary>
             <div className="campaignReadinessGrid">
               <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima memenuhi syarat izin</span>
               <span className={testReady ? "ready" : "blocked"}>2. {testReady ? "Uji diterima gateway" : "Uji pengiriman belum berhasil"}</span>
               <span className={readiness?.has_image && !readiness?.image_supported ? "blocked" : "ready"}>3. {readiness?.has_image ? (readiness?.image_supported ? "Pengirim gambar WAHA siap diuji" : "Pengirim gambar di n8n belum diperbarui") : readiness?.has_video ? "Video harus diuji" : "Pesan teks siap diuji"}</span>
             </div>
             {eligibleCount === 0 && <p className="muted">Semua penerima belum berizin atau dikecualikan. Draft boleh disimpan, tetapi Blash tidak dapat mengirim sebelum izin promosi pelanggan tercatat.</p>}
-            {readiness?.has_image && !readiness?.image_supported && <p className="muted">Untuk poster, impor dan aktifkan workflow outbound terbaru di n8n. Jangan aktifkan workflow lama dan baru bersamaan. <a href="/api/campaigns/workflow?kind=all">Unduh workflow all-in-one terbaru</a> · <a href="/api/campaigns/workflow">Unduh modul outbound</a>.</p>}
-            <button type="button" className="btn" onClick={()=>void refresh()} disabled={busy}>Periksa ulang status uji dan worker</button>
-          </div>
+            {readiness?.has_image && !readiness?.image_supported && <p className="muted">Sambungan pengirim gambar belum siap. <Link href="/integrations">Periksa koneksi →</Link></p>}
+            <button type="button" className="btn" onClick={()=>void refresh()} disabled={busy}>Perbarui status</button>
+          </details>
           <div className="campaignTestPanel section">
-            <strong>Wajib: kirim uji ke nomor WhatsApp milik sendiri</strong>
-            <p className="muted">Masukkan nomor dengan awalan 08 atau 62. Tunggu antrean diterima gateway, cek poster/video di WhatsApp, kemudian periksa status dan mulai/jadwalkan Blash.</p>
+            <strong>1. Coba ke WhatsApp sendiri</strong>
+            <p className="muted">Nomor boleh diawali 08 atau 62. Poster dan pesan akan dikirim sesuai isianmu.</p>
             <div className="campaignToolbar">
             <input
               className="input"
@@ -155,35 +166,40 @@ function Detail({
             />
             <button
               className="btn"
-              disabled={busy || !testPhone}
+              disabled={busy || !testPhone || testPending}
               onClick={() => void test()}
             >
-              {busy ? "Menyiapkan uji…" : "Kirim uji sekarang"}
+              {testPending ? "Menunggu hasil…" : busy ? "Menyiapkan…" : testReady ? "Kirim percobaan lagi" : "Kirim percobaan"}
             </button>
             </div>
-            {actionError && !confirm && <div className="notice errorNotice" role="alert">{actionError}</div>}
+            <p className="muted" role="status">Status: {testReady ? "Diterima pengirim; cek hasilnya di WhatsApp" : testPending ? "Sedang diproses" : ["FAILED","UNKNOWN"].includes(readiness?.test_status) ? "Belum berhasil. Periksa koneksi sebelum mencoba lagi." : "Belum dicoba"}</p>
           </div>
-          <div className="campaignToolbar section">
+          <div className="campaignTestPanel section">
+            <strong>2. Kirim ke pelanggan</strong>
+            <p className="muted">{eligibleCount} penerima berizin · {testReady ? "Percobaan selesai" : "Selesaikan percobaan dahulu"}</p>
+            {eligibleCount===0&&<Link href="/contacts">Lengkapi izin penerima di Kontak →</Link>}
+            <div className="blashSendMode" role="group" aria-label="Waktu pengiriman">
+              <button className={"btn "+(sendMode==="NOW"?"primary":"")} aria-pressed={sendMode==="NOW"} onClick={()=>setSendMode("NOW")}>Kirim sekarang</button>
+              <button className={"btn "+(sendMode==="LATER"?"primary":"")} aria-pressed={sendMode==="LATER"} onClick={()=>setSendMode("LATER")}>Jadwalkan</button>
+            </div>
+            {sendMode==="LATER"&&
             <label className="fieldLabel">
-              Jadwal WIB
+              Tanggal dan jam (WIB)
               <input
                 className="input"
                 type="datetime-local"
                 value={schedule}
                 onChange={(e) => setSchedule(e.target.value)}
               />
-            </label>
+            </label>}
             <button
               className="btn primary"
-              disabled={busy}
-              onClick={() => { setActionError(""); setNotice(""); setConfirm(schedule ? "SCHEDULE" : "START"); }}
+              disabled={busy || !testReady || eligibleCount<1 || !readiness?.worker_online || (sendMode==="LATER"&&!schedule)}
+              onClick={() => { setActionError(""); setNotice(""); setConfirm(sendMode==="LATER" ? "SCHEDULE" : "START"); }}
             >
-              {schedule ? "Jadwalkan Blash" : "Mulai Blash"}
+              {sendMode==="LATER" ? "Simpan jadwal pengiriman" : "Kirim ke "+eligibleCount+" penerima"}
             </button>
           </div>
-          <p className="muted">
-            Uji ke nomor WhatsApp sendiri wajib diterima gateway sebelum Blash dijadwalkan atau dimulai. Untuk video, periksa juga apakah MP4 benar-benar diterima dan bisa diputar.
-          </p>
         </>
       )}
       {confirm && (
@@ -215,10 +231,7 @@ function Detail({
           {error || actionError || notice}
         </div>
       )}
-      <div className="notice section">
-        Diterima gateway belum berarti sampai atau dibaca. UNKNOWN memerlukan
-        rekonsiliasi; tidak dikirim ulang otomatis.
-      </div>
+      <details className="blashExtra section"><summary>Arti status pengiriman</summary><p>Diterima gateway berarti pesan diterima pengirim WhatsApp. Status Sampai dan Dibaca menunggu laporan dari WhatsApp. Pengiriman yang belum pasti tidak diulang otomatis.</p></details>
       <div className="tableWrap section campaignDetailTable">
         <table className="table">
           <thead>
@@ -295,6 +308,7 @@ export default function Campaigns() {
   const { data, error, loading, refresh } = useCampaignData("?offset="+listOffset);
   const [editor, setEditor] = useState(false),
     [active, setActive] = useState("");
+  useEffect(()=>{if(editor||active)document.getElementById("blash-workspace")?.scrollIntoView({block:"start"})},[editor,active]);
   const campaigns = data?.campaigns || [];
   const runtime = data?.runtime?.[0];
   const online =
@@ -304,10 +318,10 @@ export default function Campaigns() {
       <div className="pageHead">
         <div>
           <h1>Blash WhatsApp</h1>
-          <p>Kelola penawaran, bekali AI dengan pengetahuan produk, dan pantau pengiriman.</p>
+          <p>Kirim poster, pesan, atau video ke pelanggan dari satu tempat.</p>
         </div>
         <div className="actions">
-          <Link className="btn" href="/campaigns/intelligence">Materi Promosi & Otak AI</Link>
+          <Link className="btn" href="/campaigns/intelligence">Materi produk & AI</Link>
           <button
             className="btn"
             onClick={async () => {
@@ -328,7 +342,7 @@ export default function Campaigns() {
           </button>
         </div>
       </div>
-      <div className="campaignMetrics">
+      {!editor && !active && <div className="campaignMetrics">
         <div className="card">
           <small>Blash berjalan</small>
           <strong>
@@ -342,7 +356,7 @@ export default function Campaigns() {
           </strong>
         </div>
         <div className="card">
-          <small>Pengirim v2</small>
+          <small>Koneksi WhatsApp</small>
           <b>{online ? "Terhubung" : "Belum terhubung"}</b>
           <p className="muted">
             {runtime
@@ -353,13 +367,10 @@ export default function Campaigns() {
               : "Draft dan kontak dapat disiapkan."}
           </p>
         </div>
-      </div>
+      </div>}
       {!online && (
         <div className="notice section">
-          Pengiriman menunggu worker Blash v2.{" "}
-          <a href="/api/campaigns/workflow">Pengirim v2</a> ·{" "}
-          <a href="/api/campaigns/workflow?kind=inbound">Penerima + delivery</a>{" "}
-          · <a href="/api/campaigns/workflow?kind=ai">Bot Groq + CRM</a> ·{" "}
+          {loading ? "Memeriksa sambungan WhatsApp…" : "WhatsApp belum terhubung. Draft tetap bisa disimpan."}{" "}
           <Link href="/integrations">Periksa integrasi</Link>
         </div>
       )}
@@ -368,7 +379,7 @@ export default function Campaigns() {
           {error}
         </div>
       )}
-      {editor ? (
+      <div id="blash-workspace" className="blashWorkspace">{editor ? (
         <CampaignEditor
           videoSupported={Boolean(runtime?.video_supported && online)}
           imageSupported={Boolean(runtime?.image_supported && online)}
@@ -434,13 +445,12 @@ export default function Campaigns() {
               <strong>
                 {loading ? "Memuat Blash…" : "Siapkan Blash pertamamu"}
               </strong>
-              Import kontak, pilih produk, lalu susun video dan pesan.
-              Pengiriman selalu dimulai dari tindakanmu.
+              Pilih Buat Blash, tambahkan penerima, lalu unggah poster atau tulis pesan.
             </div>
           )}
         </div>
-      )}
-      <div className="actions section"><button className="btn" disabled={!listOffset} onClick={()=>setListOffset(Math.max(0,listOffset-20))}>Sebelumnya</button><span>Halaman {listOffset/20+1}</span><button className="btn" disabled={campaigns.length<20} onClick={()=>setListOffset(listOffset+20)}>Berikutnya</button></div>
+      )}</div>
+      {!editor && !active && campaigns.length>0 && <div className="actions section"><button className="btn" disabled={!listOffset} onClick={()=>setListOffset(Math.max(0,listOffset-20))}>Sebelumnya</button><span>Halaman {listOffset/20+1}</span><button className="btn" disabled={campaigns.length<20} onClick={()=>setListOffset(listOffset+20)}>Berikutnya</button></div>}
     </>
   );
 }

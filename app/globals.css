@@ -1492,6 +1492,27 @@ body.dark .taskRowIcon { background:var(--soft); }
 .campaignTestPanel .campaignToolbar .input{flex:1 1 210px;min-width:0}
 .campaignTestPanel .campaignToolbar .btn{flex:0 0 auto}
 .campaignReadiness a{font-weight:700;color:var(--accent)}
+.blashJumpLinks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:16px 0 20px}
+.blashJumpLinks a{padding:12px 8px;border:1px solid var(--line);border-radius:9px;background:var(--soft);font-size:13px;font-weight:650;text-align:center;text-decoration:none;color:var(--text)}
+.blashJumpLinks a:hover,.blashJumpLinks a:focus-visible{border-color:var(--accent)}
+.oneCampaignBlock[id]{scroll-margin-top:90px}
+.blashWorkspace{scroll-margin-top:85px}
+.blashFormats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 16px}
+.blashFormats .blashFormat{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;text-align:left;white-space:normal;min-height:80px;padding:13px}
+.blashFormat b{font-size:14px;line-height:1.4}.blashFormat small{font-size:12px;line-height:1.4;opacity:.85}
+.blashExtra{padding:12px 0;font-size:13px;line-height:1.6;color:var(--muted)}
+.blashExtra summary,.campaignReadiness>summary{cursor:pointer;font-weight:650;color:var(--text);padding:3px 0}
+.blashExtra[open]>summary,.campaignReadiness[open]>summary{margin-bottom:12px}
+.blashExtra .fieldLabel{margin-top:12px}
+.blashNextStep{padding:18px;border-left:3px solid var(--accent);background:var(--soft);border-radius:9px}
+.blashNextStep strong{font-size:17px}.blashNextStep p{margin:8px 0 0;color:var(--muted);line-height:1.6}
+.blashSendMode{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){
+ .blashJumpLinks{gap:5px}.blashJumpLinks a{font-size:12px;padding:12px 3px}
+ .blashFormats{grid-template-columns:1fr}.blashFormats .blashFormat{min-height:62px;gap:3px}
+ .onePageCampaign .fieldLabel{font-size:14px}.onePageCampaign .input{font-size:16px}
+ .blashSendMode>.btn{flex:1}.blashExtra{font-size:13px}
+}
 @media(max-width:680px){
  .campaignTestPanel{padding:12px}
  .campaignTestPanel .campaignToolbar{display:grid;grid-template-columns:1fr}

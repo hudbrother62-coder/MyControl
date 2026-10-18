@@ -62,6 +62,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const [bot,setBot]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
+ const feedback=useRef<HTMLDivElement>(null);
+ useEffect(()=>{if(error){feedback.current?.scrollIntoView({block:"center",behavior:"smooth"});feedback.current?.focus({preventScroll:true})}},[error]);
  useEffect(()=>()=>{for(const url of objectUrls.current)URL.revokeObjectURL(url)},[]);
  const known:KnownContact[]=data?.contacts||[];
  const knownPhones=new Set(known.filter(x=>x.phone).map(x=>x.phone));
@@ -77,8 +79,11 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const previewName=known.find(c=>selected.includes(c.phone||""))?.name||allImported.find(c=>selected.includes(c.phone))?.name||"Pelanggan";
  const importedSelected=allImported.filter(c=>selected.includes(c.phone));
  const blockedKnown=new Set(known.filter(c=>c.opted_out_at||c.exclusion).map(c=>c.phone));
+ const pendingManual=manualRows.flatMap(row=>{try{if(!row.name.trim()||!row.phone.trim())return [];return [{phone:normalizePhone(row.phone),consent:row.consent&&row.consent_evidence.trim().length>=12}]}catch{return []}});
+ const preparedPhones=Array.from(new Set([...selected,...pendingManual.map(row=>row.phone)]));
  const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...allImported.filter(c=>c.consent).map(c=>c.phone)].filter(phone=>!blockedKnown.has(phone)));
  const eligibleVisible=selected.filter(phone=>locallyApproved.has(phone)&&!excluded.includes(phone)).length;
+ const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone&&row.consent))).length;
  const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
  function toggle(phone:string){
@@ -200,7 +205,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   if(busy)return;
   setBusy(true);setError("");
   try{
-   if(!name.trim()||!product)throw new Error("Isi nama Blash dan produk");
+   if(!product)throw new Error("Pilih produk di bagian 1 terlebih dahulu.");
    // Read unsaved manual rows as part of Save: users need not click a separate Add button.
    const pending=readManualRows();
    const selectedPhones=Array.from(new Set([...selected,...pending.map(c=>c.phone)]));
@@ -211,7 +216,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    const included=Array.from(imports.values()).filter(c=>selectedPhones.includes(c.phone));
    if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
-   const r=await campaignRequest({action:"create",campaign:{name:name.trim(),product_id:product,phones:selectedPhones,
+   const campaignName=name.trim()||("Promosi "+(products.find(p=>p.source_key===product)?.payload?.product_name||product)).slice(0,120);
+   const r=await campaignRequest({action:"create",campaign:{name:campaignName,product_id:product,phones:selectedPhones,
     import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:bot}});
    onDone(r.id);
   }catch(e){setError((e as Error).message);if((e as Error).message.includes("Kontak manual"))setRecipientSource("manual")}
@@ -219,29 +225,33 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  }
  return <section className="card campaignEditor onePageCampaign">
   <div className="sectionTitle"><div><h2>Buat Blash</h2>
-   <p className="muted">Semua data dalam satu halaman · simpan draft dahulu, uji pengiriman sebelum memulai.</p>
+   <p className="muted">Isi di sini → simpan → coba ke nomor sendiri → kirim atau jadwalkan.</p>
   </div><button className="btn" type="button" onClick={onClose}>Tutup</button></div>
+  <nav className="blashJumpLinks" aria-label="Bagian pengisian Blash">
+   <a href="#blash-product">1. Produk</a><a href="#blash-recipients">2. Penerima</a>
+   <a href="#blash-message">3. Isi pesan</a><a href="#blash-review">4. Simpan</a>
+  </nav>
   <div className="oneCampaignGrid">
-   <section className="oneCampaignBlock"><h3>1. Produk dan nama Blash</h3>
+   <section id="blash-product" className="oneCampaignBlock"><h3>1. Pilih produk</h3>
     <div className="formGrid">
-     <label className="fieldLabel">Nama Blash<input className="input" maxLength={120} value={name}
-      onChange={e=>setName(e.target.value)} placeholder="Contoh: Promosi Gajian Pro"/></label>
+     <label className="fieldLabel">Nama Blash (opsional)<input className="input" maxLength={120} value={name}
+      onChange={e=>setName(e.target.value)} placeholder="Otomatis mengikuti produk"/></label>
      <label className="fieldLabel">Produk<select className="input" value={product} onChange={e=>setProduct(e.target.value)}>
       <option value="">Pilih produk</option>{products.map(p=><option key={p.source_key} value={p.source_key}>
        {p.payload?.product_name||p.source_key}</option>)}
      </select></label>
     </div>
-    <p className="muted">AI memakai katalog produk resmi. <Link href="/campaigns/intelligence">Kelola materi promosi →</Link></p>
+    <details className="blashExtra"><summary>Atur pengetahuan produk untuk AI</summary><Link href="/campaigns/intelligence">Buka materi promosi →</Link></details>
    </section>
-   <section className="oneCampaignBlock"><h3>2. Sumber penerima</h3>
+   <section id="blash-recipients" className="oneCampaignBlock"><h3>2. Pilih penerima</h3>
     <div className="campaignSourceHeader">
      <div className="campaignSourceTabs" role="group" aria-label="Sumber penerima">
       <button type="button" aria-pressed={recipientSource==="existing"} className={"btn "+(recipientSource==="existing"?"primary":"")}
-       onClick={()=>setRecipientSource("existing")}>WhatsApp ({data?.total??0})</button>
+       onClick={()=>setRecipientSource("existing")}>Kontak tersimpan ({data?.total??0})</button>
       <button type="button" aria-pressed={recipientSource==="excel"} className={"btn "+(recipientSource==="excel"?"primary":"")}
-       onClick={()=>setRecipientSource("excel")}>Excel ({imported.length})</button>
+       onClick={()=>setRecipientSource("excel")}>Dari Excel ({imported.length})</button>
       <button type="button" aria-pressed={recipientSource==="manual"} className={"btn "+(recipientSource==="manual"?"primary":"")}
-       onClick={()=>setRecipientSource("manual")}>Manual ({manualContacts.length})</button>
+       onClick={()=>setRecipientSource("manual")}>Ketik nomor ({manualContacts.length})</button>
      </div>
      <Link className="btn campaignManageContact" href="/contacts">Menu kontak →</Link>
     </div>
@@ -257,7 +267,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
      <div className="campaignManualHeading"><div><b>Tambah kontak manual</b>
-      <p className="muted">Isi lima kontak sekaligus. Baris yang terisi otomatis ikut saat Simpan Draft; tombol Tambahkan hanya untuk menyiapkan lebih banyak baris.</p></div>
+      <p className="muted">Isi nama dan nomor. Baris terisi otomatis tersimpan bersama Blash.</p></div>
       <span className="badge">{manualRows.length} baris</span></div>
      <div className="campaignManualRows">
       {manualRows.map((row,index)=><div className="campaignManualRow" key={row.id}>
@@ -285,7 +295,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </div>
      {manualNotice&&<div className="notice" role="status">{manualNotice}</div>}
      {error&&<div className="notice errorNotice" role="alert">{error}</div>}
-     <p className="muted">Kontak baru masuk sebagai calon penerima Blash, bukan otomatis ke Kontak Utama. Centang izin hanya jika pelanggan memang menyetujui promosi dan sertakan bukti nyata. Tanpa izin, draft tetap boleh disimpan tetapi pengiriman akan dilewati.</p>
+     <p className="muted">Centang izin promosi jika pelanggan sudah setuju, lalu tulis sumber izinnya.</p>
     </div>}
     <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
@@ -295,7 +305,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     </div>
     <div className="campaignRecipientSummary">
      <span><b>{selected.length}</b> dipilih</span><span><b>{excluded.filter(x=>selected.includes(x)).length}</b> dikecualikan</span>
-     <span><b>{eligibleVisible}</b> teridentifikasi berizin</span>
+     <span><b>{eligibleVisible}</b> berizin</span>
     </div>
     <div className="recipientPicker campaignRecipientPicker">
      {visible.map((c:any)=>{
@@ -341,35 +351,39 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       {selected.length>100&&<p className="muted">Ditampilkan 100 dari {selected.length} kontak. Gunakan pencarian dan pilihan untuk mengelola seluruh daftar.</p>}
      </div>
     </details>}
-    <div className="notice section">Kontak boleh dipilih sebagai draft, tetapi hanya yang memiliki izin promosi dan tidak diblokir yang dapat dikirimi Blash. Pengecualian di sini hanya berlaku untuk Blash ini. <Link href="/contacts">Kelola izin kontak</Link>.</div>
+    <details className="blashExtra"><summary>Tentang izin dan kontak yang dilewati</summary><p>Hanya kontak berizin yang akan dikirimi. Pilihan Lewati berlaku untuk Blash ini saja. <Link href="/contacts">Kelola izin kontak →</Link></p></details>
    </section>
-   <section className="oneCampaignBlock"><h3>3. Poster, teks, dan video</h3><p className="muted">Unggah poster langsung dari HP. Gambar akan dikirim sebagai media WhatsApp, bukan sekadar link.</p>
+   <section id="blash-message" className="oneCampaignBlock"><h3>3. Apa yang ingin dikirim?</h3><p className="muted">Pilih poster, teks, atau video. Link YouTube cukup ditempel di kolom pesan.</p>
     <div className="campaignCompose">
      <div>{steps.map((step,i)=><div key={i} className="messageEditor">
       <div className="sectionTitle"><h3>Pesan {i+1}</h3>{i>0&&<button className="btn" onClick={()=>setSteps(xs=>xs.filter((_,j)=>j!==i))}>Hapus</button>}</div>
-      <label className="fieldLabel">Jenis pesan<select className="input" value={step.type}
-        onChange={e=>{const type=e.target.value as CampaignStep["type"];edit(i,{type,media_url:""});setMediaNames(prev=>{const next={...prev};delete next[i];return next});setMediaPreviews(prev=>{const next={...prev};delete next[i];return next})}}>
-       <option value="IMAGE">Poster / gambar + caption</option><option value="TEXT">Teks WhatsApp</option><option value="VIDEO">Video MP4 + caption</option></select>
-      </label>
+      <div className="blashFormats" role="group" aria-label={"Jenis pesan "+(i+1)}>
+       {([['IMAGE','Poster / gambar','JPG, PNG, WebP'],['TEXT','Teks / link YouTube','Tulis atau tempel link'],['VIDEO','Video MP4','Unggah berkas video']] as const).map(([type,label,hint])=>
+        <button key={type} type="button" className={"btn blashFormat "+(step.type===type?"primary":"")} aria-pressed={step.type===type}
+         onClick={()=>{if(type===step.type)return;edit(i,{type,media_url:""});setMediaNames(prev=>{const next={...prev};delete next[i];return next});setMediaPreviews(prev=>{const next={...prev};delete next[i];return next})}}>
+         <b>{label}</b><small>{hint}</small></button>)}
+      </div>
       {(step.type==="IMAGE"||step.type==="VIDEO")&&<div className="campaignVideoUploader">
-       {step.type==="VIDEO"&&!videoSupported&&<div className="notice">Video belum terverifikasi oleh worker WAHA. Lakukan uji ke nomor sendiri terlebih dahulu atau pilih Poster.</div>}
-       {step.type==="IMAGE"&&!imageSupported&&<div className="notice">Pengirim poster di n8n belum diperbarui. Poster dapat diunggah dan draft dapat disimpan, tetapi pengiriman uji akan menunggu workflow sendImage terbaru. <a href="/api/campaigns/workflow?kind=all">Unduh workflow all-in-one</a>.</div>}
+       {step.type==="VIDEO"&&!videoSupported&&<div className="notice">Coba video ke nomor sendiri dahulu sebelum mengirim ke pelanggan.</div>}
+       {step.type==="IMAGE"&&!imageSupported&&<div className="notice">Sambungan pengirim gambar belum siap. Kamu tetap bisa menyimpan draft. <Link href="/integrations">Periksa koneksi →</Link></div>}
        <label className="fieldLabel">{step.type==="IMAGE"?"Pilih poster (JPG/PNG/WebP · maks. 8 MB)":"Pilih video MP4 (maks. 25 MB)"}
         <input type="file" className="input" accept={step.type==="IMAGE"?"image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp":".mp4,video/mp4"} disabled={busy}
          onChange={e=>void upload(i,e.target.files?.[0])}/></label>
        {busy&&<small className="muted">Sedang mengunggah media…</small>}
        {mediaPreviews[i]&&(step.type==="IMAGE"?<img className="campaignPosterPreview" src={mediaPreviews[i]} alt="Pratinjau poster"/>:
         <video className="campaignVideoPreview" src={mediaPreviews[i]} controls playsInline preload="metadata"/>)}
-       {step.media_url&&<div className="notice">Media siap: {mediaNames[i]||"Berkas terpilih"} · {step.media_url.startsWith("storage://")?"Tersimpan privat di Supabase.":"Tautan langsung eksternal."}</div>}
+       {step.media_url&&<div className="notice" role="status">✓ Siap dikirim: {mediaNames[i]||"Media dari tautan"}</div>}
+       <details className="blashExtra"><summary>Gunakan tautan file sebagai gantinya</summary>
        <label className="fieldLabel">Atau URL {step.type==="IMAGE"?"gambar langsung (.jpg/.png/.webp)":"video HTTPS"}
         <input className="input" value={step.media_url||""}
          onChange={e=>{edit(i,{media_url:e.target.value});setMediaPreviews(prev=>{const next={...prev};delete next[i];return next})}}
          placeholder={step.type==="IMAGE"?"https://domain.com/poster.jpg":"https://domain.com/video.mp4"}/></label>
-       {step.type==="IMAGE"&&<small className="muted">Link berbagi Google Drive bukan tautan gambar langsung. Unduh posternya dari Drive lalu unggah di sini untuk hasil yang lebih andal.</small>}
+       {step.type==="IMAGE"&&<small className="muted">Dari Google Drive? Unduh gambarnya, lalu pilih file di atas.</small>}
+       </details>
       </div>}
-      <label className="fieldLabel">{step.type==="IMAGE"?"Caption poster (opsional)":step.type==="VIDEO"?"Caption video":"Pesan teks"}
+      <label className="fieldLabel">{step.type==="IMAGE"?"Pesan di bawah poster (opsional)":step.type==="VIDEO"?"Pesan di bawah video":"Pesan atau link YouTube"}
        <textarea className="input" rows={4} maxLength={4000} value={step.body}
-        onChange={e=>edit(i,{body:e.target.value})} placeholder="Halo {{nama}}, ada solusi untuk..."/></label>
+        onChange={e=>edit(i,{body:e.target.value})} placeholder="Halo {{nama}}, ini penawaran kami.\nLink YouTube juga boleh ditambahkan di sini."/></label>
       <small className="muted">{step.body.length}/4.000 · Personalisasi dengan {"{{nama}}"}</small>
      </div>)}
      {steps.length<2&&<button className="btn" onClick={()=>setSteps(v=>[...v,{type:"TEXT",body:""}])}>+ Tambah pesan kedua</button>}
@@ -385,21 +399,21 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </aside>
     </div>
    </section>
-   <section className="oneCampaignBlock"><h3>4. Bot dan pemeriksaan draft</h3>
+   <section id="blash-review" className="oneCampaignBlock"><h3>4. Periksa dan simpan</h3>
     <label className="checkLine"><input type="checkbox" checked={bot} onChange={e=>setBot(e.target.checked)}/>
-     <span><b>AI menangani balasan pelanggan</b><small>Kontrol AI per kontak dan aturan owner tetap berlaku.</small></span></label>
+     <span><b>AI membantu membalas pelanggan</b><small>Aktif setelah pelanggan membalas pesanmu.</small></span></label>
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
-     <div><small>Penerima disiapkan</small><b>{new Set([...selected,...manualRows.filter(x=>x.name.trim()&&x.phone.trim()).map(x=>x.phone)]).size}</b></div>
-     <div><small>Kontak berizin saat ini</small><b>{eligibleVisible}</b></div>
+     <div><small>Penerima disiapkan</small><b>{preparedPhones.length}</b></div>
+     <div><small>Kontak berizin saat ini</small><b>{preparedEligible}</b></div>
      <div><small>Format</small><b>{steps.some(x=>x.type==="IMAGE")?"Poster/gambar":steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
     </div>
-    <div className="notice">Blash disimpan sebagai draft, termasuk kontak manual yang masih diisi. Pengiriman membutuhkan izin promosi yang valid dan uji ke nomor sendiri. Video baru boleh dikirim massal setelah uji video diterima gateway.</div>
+    <p className="muted">Setelah disimpan, coba kirim ke nomor sendiri. Pelanggan belum menerima pesan sampai kamu memilih Kirim atau Jadwalkan.</p>
    </section>
   </div>
-  {(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}
+  <div ref={feedback} tabIndex={-1}>{(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}</div>
   <div className="actions section"><button className="btn primary" disabled={busy}
-   onClick={()=>void save()}>{busy?"Menyimpan…":"Simpan draft Blash (termasuk kontak manual)"}</button>
+   onClick={()=>void save()}>{busy?"Memproses…":"Simpan & lanjut uji"}</button>
    <button className="btn" onClick={onClose}>Batal</button></div>
  </section>;
 }
