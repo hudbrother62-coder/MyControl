@@ -1,5 +1,4 @@
 begin;
--- Poster support is blocked until the upgraded n8n sender advertises sendImage capability.
 alter table public.mc_campaign_runtime add column if not exists image_supported boolean not null default false;
 update storage.buckets set allowed_mime_types=array['video/mp4','image/jpeg','image/png','image/webp']::text[]
  where id='mycontrol-campaigns';
@@ -40,28 +39,8 @@ begin
   if s->>'type'='IMAGE'
     and (
      length(coalesce(s->>'media_url',''))>2048
-     or (coalesce(s->>'media_url','') !~* '^storage://mycontrol-campaigns/[a-f0-9-]{36}\.(jpg|jpeg|png|webp) ((coalesce(s->>'media_url','') !~ '^https://[^ /]+/' and coalesce(s->>'media_url','') !~ '^storage://mycontrol-campaigns/[a-f0-9-]{36}\.mp4$') or length(s->>'media_url')>2048)then raise exception 'Video memerlukan URL HTTPS';end if;
- end loop;
- insert into mc_campaigns(name,product_id,steps,session_name,bot_enabled)
- values(trim(p_campaign->>'name'),p_campaign->>'product_id',p_campaign->'steps',coalesce(nullif(p_campaign->>'session_name',''),'default'),coalesce((p_campaign->>'bot_enabled')::boolean,true))returning id into v_id;
- insert into mc_campaign_recipients(campaign_id,phone,name)
- select v_id,c.phone,c.name from mc_campaign_contacts c where c.phone in(select jsonb_array_elements_text(p_campaign->'phones'));
- get diagnostics v_count=row_count;
- if v_count=0 then raise exception 'Penerima tidak ditemukan';end if;
- insert into mc_campaign_audit(campaign_id,action,detail)values(v_id,'CREATED',jsonb_build_object('recipients',v_count));
- return jsonb_build_object('ok',true,'id',v_id);
-end$$;
-       and coalesce(s->>'media_url','') !~* '^https://[^ /?#:@]+/[^ ]+\.(jpg|jpeg|png|webp)(\?[^ ]*)? ((coalesce(s->>'media_url','') !~ '^https://[^ /]+/' and coalesce(s->>'media_url','') !~ '^storage://mycontrol-campaigns/[a-f0-9-]{36}\.mp4$') or length(s->>'media_url')>2048)then raise exception 'Video memerlukan URL HTTPS';end if;
- end loop;
- insert into mc_campaigns(name,product_id,steps,session_name,bot_enabled)
- values(trim(p_campaign->>'name'),p_campaign->>'product_id',p_campaign->'steps',coalesce(nullif(p_campaign->>'session_name',''),'default'),coalesce((p_campaign->>'bot_enabled')::boolean,true))returning id into v_id;
- insert into mc_campaign_recipients(campaign_id,phone,name)
- select v_id,c.phone,c.name from mc_campaign_contacts c where c.phone in(select jsonb_array_elements_text(p_campaign->'phones'));
- get diagnostics v_count=row_count;
- if v_count=0 then raise exception 'Penerima tidak ditemukan';end if;
- insert into mc_campaign_audit(campaign_id,action,detail)values(v_id,'CREATED',jsonb_build_object('recipients',v_count));
- return jsonb_build_object('ok',true,'id',v_id);
-end$$;)
+     or (coalesce(s->>'media_url','') !~* '^storage://mycontrol-campaigns/[a-f0-9-]{36}\.(jpg|jpeg|png|webp)$'
+       and coalesce(s->>'media_url','') !~* '^https://[^ /?#:@]+/[^ ]+\.(jpg|jpeg|png|webp)(\?[^ ]*)?$')
     )then raise exception 'Poster memerlukan file unggahan atau URL gambar HTTPS langsung';end if;
   if s->>'type'='VIDEO' and ((coalesce(s->>'media_url','') !~ '^https://[^ /]+/' and coalesce(s->>'media_url','') !~ '^storage://mycontrol-campaigns/[a-f0-9-]{36}\.mp4$') or length(s->>'media_url')>2048)then raise exception 'Video memerlukan URL HTTPS';end if;
  end loop;
