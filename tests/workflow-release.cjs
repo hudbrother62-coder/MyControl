@@ -50,3 +50,28 @@ test('every quoted node reference in release resolves',()=>{
   for(const m of serialized.matchAll(/\$\((["'])(.*?)\1\)/g))assert.ok(nodes.has(m[2]),n.name+': '+m[2]);
  }
 });
+
+
+test('poster JPG and PNG route to sendImage with correct media MIME and signed URL',()=>{
+ const data={
+  '03 | Read Web Controls':{settings:{waha_base_url:'https://waha.example/'}},
+  '03 | Claim Outbound Job':{session_name:'default',chat_id:'628123456789@c.us',body:'Halo {{nama}}',media_url:'storage://mycontrol-campaigns/poster.jpg'},
+  '03 | Check WAHA Working':{name:'active-session'},
+  '03 | Sign Private Video':{signedURL:'/object/sign/mycontrol-campaigns/poster.jpg?token=secret'}
+ };
+ const url=nodes.get('03 | WAHA Send Text').parameters.url,body=nodes.get('03 | WAHA Send Text').parameters.body;
+ assert.equal(expression(url,data),'https://waha.example/api/sendImage');
+ let packet=JSON.parse(expression(body,data,{SUPABASE_URL:'https://db.example'}));
+ assert.equal(packet.file.mimetype,'image/jpeg');
+ assert.equal(packet.file.url,'https://db.example/storage/v1/object/sign/mycontrol-campaigns/poster.jpg?token=secret');
+ assert.equal(packet.caption,'Halo {{nama}}');
+ data['03 | Claim Outbound Job'].media_url='https://cdn.example.com/poster.png?token=public';
+ assert.equal(expression(url,data),'https://waha.example/api/sendImage');
+ packet=JSON.parse(expression(body,data));
+ assert.equal(packet.file.mimetype,'image/png');
+ data['03 | Claim Outbound Job'].media_url='https://cdn.example.com/clip.mp4';
+ assert.equal(expression(url,data),'https://waha.example/api/sendVideo');
+ assert.equal(JSON.parse(expression(body,data)).file.mimetype,'video/mp4');
+ assert.equal(nodes.get('03 | Campaign Worker Heartbeat').parameters.url.includes('mc_campaign_heartbeat_v2'),true);
+ assert.equal(JSON.parse(expression(nodes.get('03 | Campaign Worker Heartbeat').parameters.body,data)).p_image,true);
+});
