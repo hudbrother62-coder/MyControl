@@ -31,6 +31,11 @@ function Detail({
     setActionError("");
     setNotice("");
     try {
+      if (action === "START" || action === "SCHEDULE") {
+        if (!readiness?.worker_online) throw new Error("Worker Blash n8n/WAHA belum aktif. Periksa Integrasi.");
+        if (!testReady) throw new Error("Kirim uji ke nomor WhatsApp milikmu terlebih dahulu, lalu tunggu status Diterima gateway. Status uji sekarang: " + (readiness?.test_status || "belum ada") + ".");
+        if (eligibleCount < 1) throw new Error("Tidak ada penerima yang memiliki izin promosi. Buka Menu Kontak, catat izin yang benar-benar diberikan pelanggan, atau buat Blash baru dengan kontak manual berizin.");
+      }
       if (action === "SCHEDULE") {
         if (!schedule) throw new Error("Pilih tanggal dan jam WIB dahulu.");
         if (new Date(schedule + ":00+07:00").getTime() <= Date.now())
@@ -175,7 +180,7 @@ function Detail({
             {confirm === "CANCEL"
               ? "Batalkan sisa pengiriman?"
               : confirm === "SCHEDULE" ? "Jadwalkan Blash untuk " + new Date(schedule + ":00+07:00").toLocaleString("id-ID", {timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"}) + " WIB?"
-              : "Mulai Blash untuk " + (c?.recipient_count ?? data.recipients.length) + " penerima?"}
+              : "Mulai Blash untuk " + (readiness?.recipient_total ?? data.recipients.length) + " penerima?"}
           </b>
           <p>Server akan memeriksa izin promosi, hasil uji, dan kesiapan worker. Pesan yang sudah dikirim tidak dapat ditarik kembali.</p>
           {actionError && <div className="notice errorNotice campaignInlineError" role="alert"><strong>Tidak dapat melanjutkan:</strong> {actionError}</div>}
@@ -414,7 +419,7 @@ export default function Campaigns() {
           {!campaigns.length && (
             <div className="card empty">
               <strong>
-                {loading ? "Memuat kampanye…" : "Siapkan Blash pertamamu"}
+                {loading ? "Memuat Blash…" : "Siapkan Blash pertamamu"}
               </strong>
               Import kontak, pilih produk, lalu susun video dan pesan.
               Pengiriman selalu dimulai dari tindakanmu.
