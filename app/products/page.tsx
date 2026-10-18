@@ -25,15 +25,15 @@ async function readResponse(res:Response){
   return json;
 }
 
-function KnowledgeField({field,label,rows=0,span=false,form,onChange}:{
+function KnowledgeField({field,label,rows=0,span=false,form,onChange,readOnly=false}:{
   field:keyof FormData;label:string;rows?:number;span?:boolean;
-  form:FormData;onChange:(name:keyof FormData,value:string)=>void
+  form:FormData;onChange:(name:keyof FormData,value:string)=>void;readOnly?:boolean
 }){
   return <label className={"fieldLabel"+(span?" span2":"")}>
     {label}
     {rows>0?
       <textarea className="input" rows={rows} value={form[field]} onChange={e=>onChange(field,e.target.value)}/>:
-      <input className="input" value={form[field]} onChange={e=>onChange(field,e.target.value)}/>}
+      <input className="input" readOnly={readOnly} value={form[field]} onChange={e=>onChange(field,e.target.value)}/>}
   </label>;
 }
 
@@ -196,7 +196,7 @@ export default function Products(){
           display:"flex",flexDirection:"column",gap:15,minHeight:0}}>
           {detailBusy?<p>Memuat data produk lengkap, FAQ, dan panduan AI…</p>:<>
             <div className="formGrid">
-              <KnowledgeField form={form} onChange={setField} field="product_id" label="ID produk" />
+              <KnowledgeField form={form} onChange={setField} field="product_id" label="ID produk" readOnly={mode==="edit"}/>
               <KnowledgeField form={form} onChange={setField} field="product_name" label="Nama produk" />
               <label className="fieldLabel">Status
                 <select className="input" value={form.status} onChange={e=>setField("status",e.target.value)}>
