@@ -14,8 +14,20 @@ test.before(async()=>{
  for(const n of ['001_queue','002_reliability','003_business_sync','005_campaigns','006_web_controls'])await db.exec(fs.readFileSync('database/'+n+'.sql','utf8').replace('create extension if not exists pgcrypto;',''));
  await db.exec(`create or replace function mc_get_ai_context_before_prime_store(text,integer default 30) returns jsonb language sql as $$select jsonb_build_object('history','[]'::jsonb,'lead_state','{}'::jsonb,'memory',coalesce((select to_jsonb(m) from mc_contact_memories m where m.chat_id=$1),'{}'::jsonb),'knowledge','[]'::jsonb)$$;`);
  if(fs.existsSync('database/036_prime_store_memory.sql')) await db.exec(fs.readFileSync('database/036_prime_store_memory.sql','utf8'));
+ if(fs.existsSync('database/037_prime_store_catalog_copy.sql')) await db.exec(fs.readFileSync('database/037_prime_store_catalog_copy.sql','utf8'));
 });
 test.after(async()=>db?.close());
+test('each PRIME STORE product carries its own approved features without access links or unrelated copy',async()=>{
+ const expected={PS_KASIR:/transaksi penjualan/i,PS_TV:/channel lokal dan internasional/i,PS_FILM:/drama Korea/i,PS_SPORT:/hasil pertandingan/i,PS_DUNOKIDS:/waktu layar/i};
+ for(const [id,feature] of Object.entries(expected)){
+  const row=(await db.query("select p.full_description,k.payload from products p join mc_runtime_knowledge k on k.source_key=p.id and k.kind='PRODUCT' where p.id=$1",[id])).rows[0];
+  assert.match(row.full_description,feature,id);assert.match(row.payload.full_description,feature,id);
+  assert.equal(row.payload.full_description,row.full_description);
+  assert.doesNotMatch(row.full_description,/https?:\/\/|Harga promo Oktober/);
+ }
+ const kasir=(await db.query("select full_description from products where id='PS_KASIR'")).rows[0].full_description;
+ assert.doesNotMatch(kasir,/film|drakor/i);
+});
 async function ctx(chat){return(await db.query('select mc_get_ai_context($1,30) c',[chat])).rows[0].c;}
 async function inbound(chat,msg,date){await db.query('insert into mc_inbound_events(external_message_id,chat_id,message_text,received_at)values($1,$2,$3,$4)',[crypto.randomUUID(),chat,msg,date]);}
 test('rollout keeps automation paused and installs only PRIME STORE active catalog',async()=>{
