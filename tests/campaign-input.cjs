@@ -46,3 +46,13 @@ test("only known variables and public HTTPS media accepted", () => {
     1,
   );
 });
+
+
+test("poster accepts private JPG and empty caption but rejects Drive share URL",()=>{
+ const c=load();
+ assert.equal(c.validateSteps([{type:"IMAGE",body:"",media_url:"storage://mycontrol-campaigns/11111111-1111-4111-8111-111111111111.jpg"}]).length,1);
+ assert.equal(c.validateSteps([{type:"IMAGE",body:"Promo {{nama}}",media_url:"https://images.example.com/promo.png"}]).length,1);
+ assert.throws(()=>c.validateSteps([{type:"IMAGE",body:"Poster",media_url:"https://drive.google.com/file/d/abc/view"}]),/langsung|URL/);
+ assert.throws(()=>c.validateSteps([{type:"IMAGE",body:"Poster",media_url:"http://127.0.0.1/internal.jpg"}]),/HTTPS/);
+ assert.throws(()=>c.validateSteps([{type:"IMAGE",body:"Poster",media_url:"storage://mycontrol-campaigns/promo.mp4"}]));
+});
