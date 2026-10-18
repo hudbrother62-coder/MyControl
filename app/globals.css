@@ -1373,3 +1373,83 @@ body.dark .taskRowIcon { background:var(--soft); }
  .campaignImportPanel .sectionTitle{flex-direction:column}
  .campaignSourceTabs button,.campaignRecipientExclude{min-height:36px}
 }
+
+/* Mobile-safe campaign recipient directory and manual table */
+.campaignSourceHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;min-width:0}
+.campaignSourceHeader .campaignSourceTabs{margin:0;min-width:0}
+.campaignSourceTabs .btn{white-space:normal;line-height:1.35;min-width:0}
+.campaignManageContact{flex:0 0 auto;text-decoration:none}
+.campaignRecipientToolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:stretch;gap:9px;min-width:0}
+.campaignRecipientToolbar>.input{min-width:0;width:100%}
+.campaignRecipientToolbar>.btn{white-space:normal}
+.campaignRecipientPicker{min-width:0;width:100%;overflow-y:auto;overflow-x:hidden}
+.campaignRecipient{min-width:0;width:100%;box-sizing:border-box}
+.campaignRecipientMain{min-width:0;flex:1 1 180px}
+.campaignRecipientName{flex:1;min-width:0;max-width:100%}
+.campaignRecipientName b,.campaignRecipientName small{min-width:0;word-break:normal;overflow-wrap:break-word;white-space:normal;line-height:1.45}
+.campaignRecipientExclude{flex:0 0 auto}
+.campaignManualPanel{min-width:0}
+.campaignManualHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.campaignManualHeading b{font-size:14px}
+.campaignManualHeading p{margin:5px 0 0}
+.campaignManualRows{display:grid;gap:8px;max-height:470px;overflow-y:auto;overflow-x:hidden}
+.campaignManualRow{display:grid;grid-template-columns:26px minmax(120px,1.3fr) minmax(125px,1.2fr) minmax(96px,.9fr) auto auto;align-items:end;gap:9px;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);min-width:0}
+.campaignManualRow .fieldLabel{min-width:0;margin:0}
+.campaignManualRow .input{width:100%;min-width:0}
+.campaignManualIndex{font-size:12px;color:var(--muted);padding-bottom:12px}
+.campaignManualConsent{display:flex;align-items:center;gap:6px;font-size:11px;white-space:nowrap;min-height:41px}
+.campaignManualConsent input{flex-shrink:0}
+.campaignManualProof{grid-column:2 / span 3}
+.campaignManualRemove{font-size:11px;white-space:nowrap}
+.campaignManualActions{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin:12px 0}
+.campaignSelectedDetails{border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-top:14px;min-width:0}
+.campaignSelectedDetails>summary{cursor:pointer;font-weight:700;font-size:12px}
+.campaignSelectedList{max-height:280px;overflow:auto;margin-top:10px}
+.campaignSelectedItem{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:9px 0;min-width:0}
+.campaignSelectedItem>span{flex:1;min-width:0}
+.campaignSelectedItem b,.campaignSelectedItem small{display:block;overflow-wrap:break-word;font-size:11px}
+.campaignSelectedItem small{color:var(--muted);margin-top:4px}
+@media(max-width:960px){
+ .campaignManualRow{grid-template-columns:26px minmax(0,1fr) minmax(0,1fr);align-items:center}
+ .campaignManualIndex{grid-column:1;padding:0}
+ .campaignManualName{grid-column:2}
+ .campaignManualPhone{grid-column:3}
+ .campaignManualTags{grid-column:2}
+ .campaignManualConsent{grid-column:3}
+ .campaignManualProof{grid-column:2/4}
+ .campaignManualRemove{grid-column:2/4;justify-self:end}
+}
+@media(max-width:680px){
+ .campaignSourceHeader{display:block}
+ .campaignSourceHeader .campaignSourceTabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .campaignSourceTabs .btn{padding:9px 4px;min-height:43px;font-size:12px}
+ .campaignManageContact{display:flex;width:100%;justify-content:center;margin-top:8px}
+ .campaignRecipientToolbar{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .campaignRecipientToolbar>.input{grid-column:1/-1;flex:auto!important;min-width:0}
+ .campaignRecipientToolbar>.btn{min-width:0;padding:9px 7px;line-height:1.35;font-size:12px}
+ .campaignRecipient{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;padding:12px;min-width:0}
+ .campaignRecipientMain{grid-column:1/-1;display:flex;align-items:center;min-width:0;width:100%;flex:none}
+ .campaignRecipientMain input{width:18px;height:18px;flex:0 0 18px}
+ .campaignRecipientName{min-width:0;width:100%;flex:1}
+ .campaignRecipientName b{font-size:13px}
+ .campaignRecipientName small{font-size:12px}
+ .campaignRecipient .badge{grid-column:1;grid-row:2;margin:0;min-width:0;max-width:100%;justify-self:start;white-space:normal;text-align:left;overflow-wrap:break-word}
+ .campaignRecipientExclude{grid-column:2;grid-row:2;margin:0;white-space:nowrap}
+ .campaignRecipientSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px}
+ .campaignRecipientSummary>span:last-child{grid-column:1/-1}
+ .campaignRecipientPagination{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:7px}
+ .campaignRecipientPagination>.btn{flex:none!important;min-width:0;white-space:nowrap;font-size:11px;padding:9px 6px}
+ .campaignManualRows{max-height:460px}
+ .campaignManualRow{grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:12px}
+ .campaignManualIndex{grid-column:1;grid-row:1;align-self:center}
+ .campaignManualRemove{grid-column:2;grid-row:1;align-self:center;justify-self:end}
+ .campaignManualName{grid-column:1/-1;grid-row:2}
+ .campaignManualPhone{grid-column:1/-1;grid-row:3}
+ .campaignManualTags{grid-column:1/-1;grid-row:4}
+ .campaignManualConsent{grid-column:1/-1;grid-row:5;min-height:30px}
+ .campaignManualProof{grid-column:1/-1;grid-row:6}
+ .campaignManualActions>.btn{flex:1 1 120px;min-width:0}
+ .campaignSelectedItem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+ .campaignSelectedItem>span{grid-column:1/-1}
+ .campaignSelectedItem>.btn{justify-self:end}
+}
