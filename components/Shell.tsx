@@ -18,7 +18,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   { title: "WORKSPACE", items: [
     { href: "/", label: "Ringkasan", Icon: LayoutDashboard, hint: "Gambaran operasional" },
     { href: "/inbox", label: "Inbox", Icon: MessageSquareText, hint: "Percakapan WhatsApp" },
-    { href: "/campaigns", label: "Kampanye", Icon: Send, hint: "Pesan promosi" },
+    { href: "/campaigns", label: "Blash", Icon: Send, hint: "Pesan promosi" },
     { href: "/contacts", label: "Kontak", Icon: Users, hint: "Daftar pelanggan" },
     { href: "/crm", label: "CRM", Icon: KanbanSquare, hint: "Peluang penjualan" },
   ] },
