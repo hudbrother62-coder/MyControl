@@ -49,7 +49,7 @@ function parseImportedRows(rows:string[][]){
  if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
  return {contacts,errors,duplicates};
 }
-export default function CampaignEditor({products,onDone,onClose,videoSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean}){
+export default function CampaignEditor({products,onDone,onClose,videoSupported,imageSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean;imageSupported?:boolean}){
  const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<RecipientSource>("existing");
  const {data,error:loadError,loading}=useCampaignData("?view=contacts&q="+encodeURIComponent(search)+"&offset="+offset);
  const [name,setName]=useState(""),[product,setProduct]=useState(""),[selected,setSelected]=useState<string[]>([]);
@@ -353,6 +353,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
       </label>
       {(step.type==="IMAGE"||step.type==="VIDEO")&&<div className="campaignVideoUploader">
        {step.type==="VIDEO"&&!videoSupported&&<div className="notice">Video belum terverifikasi oleh worker WAHA. Lakukan uji ke nomor sendiri terlebih dahulu atau pilih Poster.</div>}
+       {step.type==="IMAGE"&&!imageSupported&&<div className="notice">Pengirim poster di n8n belum diperbarui. Poster dapat diunggah dan draft dapat disimpan, tetapi pengiriman uji akan menunggu workflow sendImage terbaru. <a href="/api/campaigns/workflow?kind=all">Unduh workflow all-in-one</a>.</div>}
        <label className="fieldLabel">{step.type==="IMAGE"?"Pilih poster (JPG/PNG/WebP · maks. 8 MB)":"Pilih video MP4 (maks. 25 MB)"}
         <input type="file" className="input" accept={step.type==="IMAGE"?"image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp":".mp4,video/mp4"} disabled={busy}
          onChange={e=>void upload(i,e.target.files?.[0])}/></label>
