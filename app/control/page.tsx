@@ -61,7 +61,7 @@ const sections = [
       },
       {
         href: "/campaigns",
-        label: "Kampanye WhatsApp",
+        label: "Blash WhatsApp",
         description: "Susun promosi teks/video dan pantau penerima.",
         Icon: Send,
       },
