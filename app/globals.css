@@ -1482,3 +1482,20 @@ body.dark .taskRowIcon { background:var(--soft); }
  .campaignDetailTable .table tbody td::before{content:attr(data-label);display:block;text-transform:uppercase;font-size:10px;letter-spacing:.04em;color:var(--muted);font-weight:750;margin-bottom:6px}
  .campaignDetailTable .table tbody td>.btn{max-width:100%}
 }
+
+/* Blash poster upload and test-on-own-number controls */
+.campaignPosterPreview{display:block;width:100%;max-height:360px;object-fit:contain;background:var(--soft);border-radius:10px;border:1px solid var(--line);margin:8px 0}
+.campaignTestPanel{display:grid;gap:10px;min-width:0;padding:15px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.campaignTestPanel>strong{font-size:13px}
+.campaignTestPanel>.muted{font-size:12px;line-height:1.55;margin:0}
+.campaignTestPanel .campaignToolbar{display:flex;align-items:stretch;flex-wrap:wrap;gap:9px;min-width:0}
+.campaignTestPanel .campaignToolbar .input{flex:1 1 210px;min-width:0}
+.campaignTestPanel .campaignToolbar .btn{flex:0 0 auto}
+.campaignReadiness a{font-weight:700;color:var(--accent)}
+@media(max-width:680px){
+ .campaignTestPanel{padding:12px}
+ .campaignTestPanel .campaignToolbar{display:grid;grid-template-columns:1fr}
+ .campaignTestPanel .campaignToolbar .input{flex:none;width:100%}
+ .campaignTestPanel .campaignToolbar .btn{width:100%;flex:none}
+ .campaignPosterPreview{max-height:290px}
+}
