@@ -64,7 +64,7 @@ export default function SalesIntelligence(){
  ];
  return <div className="salesBrain">
    <div className="pageHead">
-    <div><Link className="linkBtn" href="/campaigns"><ChevronLeft size={15}/> Kembali ke kampanye</Link>
+    <div><Link className="linkBtn" href="/campaigns"><ChevronLeft size={15}/> Kembali ke Blash</Link>
      <h1>Materi Promosi & Otak AI</h1>
      <p>Ajari AI memahami produk, bukan hanya menghafal jawaban. Materi tersimpan langsung di Supabase.</p>
     </div>
@@ -136,7 +136,7 @@ export default function SalesIntelligence(){
       },"Penawaran disimpan dan disinkronkan ke pengetahuan AI.")}>{busy?"Menyimpan…":"Simpan promo"}</button>
       <button className="btn" onClick={()=>setOffer({id:"",name:"",discount_type:"FIXED",discount_value:"",start_at:"",end_at:"",notes:"",active:false})}>Kosongkan</button>
      </div>
-     <p className="muted">Promo ini tidak otomatis mengirim broadcast. Pengiriman kampanye tetap memerlukan pilihan penerima, izin promosi, dan persetujuan admin.</p>
+     <p className="muted">Promo ini tidak otomatis mengirim broadcast. Pengiriman Blash tetap memerlukan pilihan penerima, izin promosi, dan persetujuan admin.</p>
     </section>
     <aside className="card brainPreview">
       <h2><Clock3 size={18}/> Daftar penawaran {p.name}</h2>
