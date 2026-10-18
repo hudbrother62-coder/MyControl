@@ -5,6 +5,9 @@ import {CampaignStep,campaignRequest,normalizePhone,validateSteps} from "@/lib/c
 import {useCampaignData} from "./useCampaignData";
 type ImportContact={phone:string;name:string;tags:string;consent:boolean;consent_evidence:string};
 type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;consent?:boolean;opted_out_at?:string|null;exclusion?:string|null};
+type RecipientSource="existing"|"excel"|"manual";
+type ManualRow={id:number;name:string;phone:string;tags:string;consent:boolean;consent_evidence:string};
+const newManualRow=(id:number):ManualRow=>({id,name:"",phone:"",tags:"",consent:false,consent_evidence:""});
 function csvRows(raw:string){
  const first=raw.split(/\r?\n/,1)[0]||"";
  const delimiter=first.includes(";")?";":",";
@@ -47,10 +50,14 @@ function parseImportedRows(rows:string[][]){
  return {contacts,errors,duplicates};
 }
 export default function CampaignEditor({products,onDone,onClose,videoSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean}){
- const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<"existing"|"excel">("existing");
+ const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<RecipientSource>("existing");
  const {data,error:loadError,loading}=useCampaignData("?view=contacts&q="+encodeURIComponent(search)+"&offset="+offset);
  const [name,setName]=useState(""),[product,setProduct]=useState(""),[selected,setSelected]=useState<string[]>([]);
  const [excluded,setExcluded]=useState<string[]>([]),[imported,setImported]=useState<ImportContact[]>([]),[importNotice,setImportNotice]=useState("");
+ const [manualRows,setManualRows]=useState<ManualRow[]>(()=>Array.from({length:5},(_,i)=>newManualRow(i)));
+ const nextManualId=useRef(5);
+ const [manualContacts,setManualContacts]=useState<ImportContact[]>([]);
+ const [manualNotice,setManualNotice]=useState("");
  const [steps,setSteps]=useState<CampaignStep[]>([{type:"TEXT",body:""}]);
  const [bot,setBot]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [videoNames,setVideoNames]=useState<Record<number,string>>({}),[videoPreviews,setVideoPreviews]=useState<Record<number,string>>({});
@@ -58,12 +65,20 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
  useEffect(()=>()=>{for(const url of objectUrls.current)URL.revokeObjectURL(url)},[]);
  const known:KnownContact[]=data?.contacts||[];
  const knownPhones=new Set(known.filter(x=>x.phone).map(x=>x.phone));
+ const allImported=useMemo(()=>{
+  const unique=new Map<string,ImportContact>();
+  for(const contact of imported)unique.set(contact.phone,contact);
+  for(const contact of manualContacts)unique.set(contact.phone,contact);
+  return Array.from(unique.values());
+ },[imported,manualContacts]);
  const excelRows=useMemo(()=>imported.filter(c=>(c.name+" "+c.phone+" "+c.tags).toLowerCase().includes(search.toLowerCase())),[imported,search]);
- const visible=recipientSource==="existing"?known:excelRows;
- const previewName=known.find(c=>selected.includes(c.phone||""))?.name||imported.find(c=>selected.includes(c.phone))?.name||"Pelanggan";
- const importedSelected=imported.filter(c=>selected.includes(c.phone));
- const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...imported.filter(c=>c.consent).map(c=>c.phone)]);
+ const manualVisible=useMemo(()=>manualContacts.filter(c=>(c.name+" "+c.phone+" "+c.tags).toLowerCase().includes(search.toLowerCase())),[manualContacts,search]);
+ const visible=recipientSource==="existing"?known:recipientSource==="excel"?excelRows:manualVisible;
+ const previewName=known.find(c=>selected.includes(c.phone||""))?.name||allImported.find(c=>selected.includes(c.phone))?.name||"Pelanggan";
+ const importedSelected=allImported.filter(c=>selected.includes(c.phone));
+ const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...allImported.filter(c=>c.consent).map(c=>c.phone)]);
  const eligibleVisible=selected.filter(phone=>locallyApproved.has(phone)&&!excluded.includes(phone)).length;
+ const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
  function toggle(phone:string){
   setSelected(prev=>prev.includes(phone)?prev.filter(x=>x!==phone):prev.length>=1000?prev:[...prev,phone]);
@@ -71,14 +86,48 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
  function toggleExclude(phone:string){setExcluded(prev=>prev.includes(phone)?prev.filter(x=>x!==phone):[...prev,phone])}
  async function selectAll(){
   try{
-   if(recipientSource==="excel"){
-    const phones=excelRows.map(x=>x.phone);
+   if(recipientSource!=="existing"){
+    const phones=(recipientSource==="excel"?excelRows:manualVisible).map(x=>x.phone);
     setSelected(prev=>Array.from(new Set([...prev,...phones])).slice(0,1000));
    }else{
     const d=await campaignRequest(undefined,"?view=selection_all&q="+encodeURIComponent(search));
     setSelected(prev=>Array.from(new Set([...prev,...(d.phones||[])])).slice(0,1000));
    }
    setError("");
+  }catch(e){setError((e as Error).message)}
+ }
+ function editManual(id:number,field:keyof Omit<ManualRow,"id">,value:string|boolean){
+  setManualRows(rows=>rows.map(row=>row.id===id?{...row,[field]:value}:row));
+  setManualNotice("");
+ }
+ function addManualRows(){
+  setManualRows(rows=>rows.length>=1000?rows:[...rows,...Array.from({length:Math.min(5,1000-rows.length)},()=>newManualRow(nextManualId.current++))]);
+ }
+ function prepareManual(){
+  setError("");setManualNotice("");
+  try{
+   const result:ImportContact[]=[];
+   const seen=new Set<string>();
+   for(const [index,row] of manualRows.entries()){
+    if(!row.name.trim()&&!row.phone.trim()&&!row.tags.trim()&&!row.consent&&!row.consent_evidence.trim())continue;
+    const name=row.name.trim();
+    if(!name||name.length>100)throw new Error("Baris "+(index+1)+": nama wajib 1–100 karakter");
+    let phone:string;
+    try{phone=normalizePhone(row.phone)}catch{throw new Error("Baris "+(index+1)+": nomor WhatsApp tidak valid")}
+    if(seen.has(phone))throw new Error("Baris "+(index+1)+": nomor terduplikasi dalam tabel");
+    seen.add(phone);
+    const proof=row.consent_evidence.trim();
+    if(row.consent&&proof.length<12)throw new Error("Baris "+(index+1)+": bukti izin promosi minimal 12 karakter");
+    result.push({phone,name,tags:row.tags.trim().slice(0,500),consent:row.consent,consent_evidence:row.consent?proof.slice(0,500):""});
+   }
+   if(!result.length)throw new Error("Isi setidaknya satu kontak manual");
+   const merged=new Map(manualContacts.map(c=>[c.phone,c]));
+   for(const c of result)merged.set(c.phone,c);
+   if(merged.size>1000)throw new Error("Maksimal 1.000 kontak manual per kampanye");
+   setManualContacts(Array.from(merged.values()));
+   setSelected(prev=>Array.from(new Set([...prev,...result.map(c=>c.phone)])).slice(0,1000));
+   setManualNotice(result.length+" kontak berhasil dimasukkan ke daftar penerima dan dipilih. Belum disimpan ke database hingga draft kampanye disimpan.");
+   setManualRows(Array.from({length:5},()=>newManualRow(nextManualId.current++)));
   }catch(e){setError((e as Error).message)}
  }
  async function loadExcel(file?:File){
@@ -162,11 +211,16 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
     <p className="muted">AI memakai katalog produk resmi. <Link href="/campaigns/intelligence">Kelola materi promosi →</Link></p>
    </section>
    <section className="oneCampaignBlock"><h3>2. Sumber penerima</h3>
-    <div className="campaignSourceTabs">
-     <button type="button" className={"btn "+(recipientSource==="existing"?"primary":"")}
-      onClick={()=>setRecipientSource("existing")}>Kontak WhatsApp ({data?.total??0})</button>
-     <button type="button" className={"btn "+(recipientSource==="excel"?"primary":"")}
-      onClick={()=>setRecipientSource("excel")}>Impor Excel ({imported.length})</button>
+    <div className="campaignSourceHeader">
+     <div className="campaignSourceTabs" role="group" aria-label="Sumber penerima">
+      <button type="button" aria-pressed={recipientSource==="existing"} className={"btn "+(recipientSource==="existing"?"primary":"")}
+       onClick={()=>setRecipientSource("existing")}>WhatsApp ({data?.total??0})</button>
+      <button type="button" aria-pressed={recipientSource==="excel"} className={"btn "+(recipientSource==="excel"?"primary":"")}
+       onClick={()=>setRecipientSource("excel")}>Excel ({imported.length})</button>
+      <button type="button" aria-pressed={recipientSource==="manual"} className={"btn "+(recipientSource==="manual"?"primary":"")}
+       onClick={()=>setRecipientSource("manual")}>Manual ({manualContacts.length})</button>
+     </div>
+     <Link className="btn campaignManageContact" href="/contacts">Menu kontak →</Link>
     </div>
     {recipientSource==="excel"&&<div className="campaignImportPanel">
       <div className="sectionTitle"><div><b>Excel/CSV khusus kampanye</b>
@@ -178,15 +232,46 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
       <p className="muted">Kolom: nama, nomor, label, izin_promosi, bukti_izin. Izin tanpa bukti tidak dianggap valid.</p>
       {importNotice&&<div className="notice">{importNotice}</div>}
     </div>}
-    <div className="campaignToolbar section">
+    {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
+     <div className="campaignManualHeading"><div><b>Tambah kontak manual</b>
+      <p className="muted">Isi hingga lima kontak sekaligus. Tambah baris bila perlu, lalu masukkan ke daftar penerima.</p></div>
+      <span className="badge">{manualRows.length} baris</span></div>
+     <div className="campaignManualRows">
+      {manualRows.map((row,index)=><div className="campaignManualRow" key={row.id}>
+       <span className="campaignManualIndex">#{index+1}</span>
+       <label className="fieldLabel campaignManualName">Nama
+        <input className="input" value={row.name} maxLength={100} placeholder="Nama pelanggan" onChange={e=>editManual(row.id,"name",e.target.value)}/></label>
+       <label className="fieldLabel campaignManualPhone">Nomor WhatsApp
+        <input className="input" type="tel" inputMode="tel" value={row.phone} placeholder="08xxxxxxxxxx" onChange={e=>editManual(row.id,"phone",e.target.value)}/></label>
+       <label className="fieldLabel campaignManualTags">Label
+        <input className="input" value={row.tags} maxLength={500} placeholder="Prospek" onChange={e=>editManual(row.id,"tags",e.target.value)}/></label>
+       <label className="campaignManualConsent"><input type="checkbox" checked={row.consent}
+        onChange={e=>editManual(row.id,"consent",e.target.checked)}/> Izin promosi</label>
+       {row.consent&&<label className="fieldLabel campaignManualProof">Bukti izin
+        <input className="input" maxLength={500} value={row.consent_evidence}
+         placeholder="Contoh: persetujuan formulir pelanggan, tanggal..."
+         onChange={e=>editManual(row.id,"consent_evidence",e.target.value)}/></label>}
+       <button className="btn campaignManualRemove" type="button" aria-label={"Hapus baris "+(index+1)}
+        disabled={manualRows.length===1}
+        onClick={()=>setManualRows(rows=>rows.filter(x=>x.id!==row.id))}>Hapus</button>
+      </div>)}
+     </div>
+     <div className="campaignManualActions">
+      <button className="btn" type="button" disabled={manualRows.length>=1000} onClick={addManualRows}>+ 5 baris</button>
+      <button className="btn primary" type="button" onClick={prepareManual}>Masukkan ke penerima</button>
+     </div>
+     {manualNotice&&<div className="notice" role="status">{manualNotice}</div>}
+     <p className="muted">Kontak baru tidak otomatis dimasukkan ke Kontak Utama. Tanpa izin promosi yang tercatat, nomor tidak akan dikirimi kampanye.</p>
+    </div>}
+    <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
       placeholder="Cari nama, nomor, label..."/>
-     <button className="btn" type="button" onClick={()=>void selectAll()} disabled={busy}>Pilih semua yang tampil</button>
+     <button className="btn" type="button" onClick={()=>void selectAll()} disabled={busy}>Pilih semua yang cocok</button>
      <button className="btn" type="button" onClick={()=>{setSelected([]);setExcluded([])}}>Hapus pilihan</button>
     </div>
     <div className="campaignRecipientSummary">
      <span><b>{selected.length}</b> dipilih</span><span><b>{excluded.filter(x=>selected.includes(x)).length}</b> dikecualikan</span>
-     <span><b>{eligibleVisible}</b> teridentifikasi berizin dalam data yang sedang dimuat</span>
+     <span><b>{eligibleVisible}</b> teridentifikasi berizin</span>
     </div>
     <div className="recipientPicker campaignRecipientPicker">
      {visible.map((c:any)=>{
@@ -211,14 +296,27 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
        </label>
       </div>;
      })}
-     {!visible.length&&<div className="empty">{loading?"Memuat kontak…":recipientSource==="excel"?
-      "Impor Excel untuk menyiapkan nomor baru.":"Tidak ada kontak yang cocok. Kontak berizin maupun yang belum berizin tetap dapat ditampilkan."}</div>}
+     {!visible.length&&<div className="empty">{recipientSource==="existing"&&loading?"Memuat kontak…":recipientSource==="excel"?
+      "Impor Excel untuk menyiapkan nomor baru.":recipientSource==="manual"?
+      "Isi tabel manual, lalu pilih Masukkan ke penerima.":"Tidak ada kontak yang cocok. Kontak berizin maupun yang belum berizin tetap dapat ditampilkan."}</div>}
     </div>
     {recipientSource==="existing"&&<div className="actions section">
      <button className="btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Sebelumnya</button>
      <span>Halaman {Math.floor(offset/50)+1}</span>
      <button className="btn" disabled={(data?.contacts?.length||0)<50} onClick={()=>setOffset(offset+50)}>Berikutnya</button>
     </div>}
+    {selected.length>0&&<details className="campaignSelectedDetails">
+     <summary>Kontak terpilih ({selected.length}) · lihat dan kelola</summary>
+     <div className="campaignSelectedList">
+      {selected.slice(0,100).map(phone=><div className="campaignSelectedItem" key={phone}>
+       <span><b>{displayContact(phone)}</b><small>+{phone}</small></span>
+       <label className="campaignRecipientExclude"><input type="checkbox" checked={excluded.includes(phone)}
+        onChange={()=>toggleExclude(phone)}/> Lewati</label>
+       <button type="button" className="btn" onClick={()=>{setSelected(xs=>xs.filter(x=>x!==phone));setExcluded(xs=>xs.filter(x=>x!==phone))}}>Hapus</button>
+      </div>)}
+      {selected.length>100&&<p className="muted">Ditampilkan 100 dari {selected.length} kontak. Gunakan pencarian dan pilihan untuk mengelola seluruh daftar.</p>}
+     </div>
+    </details>}
     <div className="notice section">Kontak boleh dipilih sebagai draft, tetapi hanya yang memiliki izin promosi dan tidak diblokir yang dapat dikirimi kampanye. Pengecualian di sini hanya berlaku untuk kampanye ini. <Link href="/contacts">Kelola izin kontak</Link>.</div>
    </section>
    <section className="oneCampaignBlock"><h3>3. Pesan dan unggah video MP4</h3>
