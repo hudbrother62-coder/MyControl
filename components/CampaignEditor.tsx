@@ -125,8 +125,10 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
    const merged=new Map(manualContacts.map(c=>[c.phone,c]));
    for(const c of result)merged.set(c.phone,c);
    if(merged.size>1000)throw new Error("Maksimal 1.000 kontak manual per kampanye");
+   const nextSelection=Array.from(new Set([...selected,...result.map(c=>c.phone)]));
+   if(nextSelection.length>1000)throw new Error("Maksimal 1.000 penerima per kampanye. Hapus beberapa pilihan terlebih dahulu.");
    setManualContacts(Array.from(merged.values()));
-   setSelected(prev=>Array.from(new Set([...prev,...result.map(c=>c.phone)])).slice(0,1000));
+   setSelected(nextSelection);
    setManualNotice(result.length+" kontak berhasil dimasukkan ke daftar penerima dan dipilih. Belum disimpan ke database hingga draft kampanye disimpan.");
    setManualRows(Array.from({length:5},()=>newManualRow(nextManualId.current++)));
   }catch(e){setError((e as Error).message)}
