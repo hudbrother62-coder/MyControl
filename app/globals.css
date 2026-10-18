@@ -1453,3 +1453,32 @@ body.dark .taskRowIcon { background:var(--soft); }
  .campaignSelectedItem>span{grid-column:1/-1}
  .campaignSelectedItem>.btn{justify-self:end}
 }
+
+/* Blash delivery readiness and mobile-first detail fixes */
+.campaignReadiness{padding:15px;border:1px solid var(--line);border-radius:12px;background:var(--soft);min-width:0}
+.campaignReadiness>strong{display:block;font-size:14px;margin-bottom:10px}
+.campaignReadinessGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.campaignReadinessGrid span{display:block;padding:10px;border:1px solid var(--line);border-radius:9px;line-height:1.45;font-size:12px;overflow-wrap:break-word;background:var(--panel)}
+.campaignReadinessGrid span.ready{border-color:var(--accent);color:var(--text)}
+.campaignReadinessGrid span.blocked{border-color:var(--line);color:var(--muted)}
+.campaignReadiness p{margin:10px 0 0;font-size:12px}
+.campaignActionConfirm{border:1px solid var(--accent);border-radius:13px;min-width:0;scroll-margin-bottom:95px}
+.campaignActionConfirm>b{font-size:15px;display:block;line-height:1.5}
+.campaignActionConfirm .actions{display:flex;gap:9px;flex-wrap:wrap}
+.campaignInlineError{margin:12px 0!important;line-height:1.55;overflow-wrap:break-word}
+.campaignDetailTable .table td .muted{overflow-wrap:break-word}
+@media(max-width:760px){
+ .campaignReadinessGrid{grid-template-columns:1fr;gap:7px}
+ .campaignReadinessGrid span{padding:10px 12px}
+ .campaignActionConfirm{padding:15px}
+ .campaignActionConfirm .actions>.btn{flex:1 1 120px;white-space:normal}
+ .campaignDetailTable{overflow:visible;min-width:0}
+ .campaignDetailTable .table{display:block;min-width:0;width:100%;border:0}
+ .campaignDetailTable .table thead{display:none}
+ .campaignDetailTable .table tbody{display:grid;gap:12px}
+ .campaignDetailTable .table tbody tr{display:grid;grid-template-columns:minmax(0,1fr);border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);min-width:0}
+ .campaignDetailTable .table tbody td{display:block;width:100%;min-width:0;padding:9px 4px;border:0;white-space:normal;overflow-wrap:break-word}
+ .campaignDetailTable .table tbody td+td{border-top:1px solid var(--line)}
+ .campaignDetailTable .table tbody td::before{content:attr(data-label);display:block;text-transform:uppercase;font-size:10px;letter-spacing:.04em;color:var(--muted);font-weight:750;margin-bottom:6px}
+ .campaignDetailTable .table tbody td>.btn{max-width:100%}
+}
