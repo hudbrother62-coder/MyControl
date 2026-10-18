@@ -58,9 +58,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
  const nextManualId=useRef(5);
  const [manualContacts,setManualContacts]=useState<ImportContact[]>([]);
  const [manualNotice,setManualNotice]=useState("");
- const [steps,setSteps]=useState<CampaignStep[]>([{type:"TEXT",body:""}]);
+ const [steps,setSteps]=useState<CampaignStep[]>([{type:"IMAGE",body:""}]);
  const [bot,setBot]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const [videoNames,setVideoNames]=useState<Record<number,string>>({}),[videoPreviews,setVideoPreviews]=useState<Record<number,string>>({});
+ const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
  useEffect(()=>()=>{for(const url of objectUrls.current)URL.revokeObjectURL(url)},[]);
  const known:KnownContact[]=data?.contacts||[];
@@ -174,20 +174,26 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
  async function upload(i:number,file?:File){
   if(!file)return;
   setError("");
-  if(file.size<=0||file.size>25*1024*1024||(!/\.mp4$/i.test(file.name)&&file.type!=="video/mp4")){
-   setError("Pilih video MP4 maksimal 25 MB");return;
+  const type=steps[i]?.type;
+  if(type!=="IMAGE"&&type!=="VIDEO"){setError("Pilih jenis media terlebih dahulu.");return}
+  const ext=file.name.split(".").pop()?.toLowerCase()||"";
+  const mimes:Record<string,string>={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",mp4:"video/mp4"};
+  const mime=mimes[ext];
+  const max=type==="VIDEO"?25*1024*1024:8*1024*1024;
+  if(!mime||(type==="IMAGE"&&!mime.startsWith("image/"))||(type==="VIDEO"&&mime!=="video/mp4")||
+    (file.type&&file.type!==mime)||file.size<=0||file.size>max){
+   setError(type==="IMAGE"?"Gunakan poster JPG/PNG/WebP maksimal 8 MB.":"Gunakan video MP4 maksimal 25 MB.");return;
   }
   setBusy(true);
   try{
    const r=await fetch("/api/campaigns/media",{method:"POST",headers:{"content-type":"application/json"},
-    body:JSON.stringify({type:"video/mp4",size:file.size})});
-   const d=await r.json();if(!r.ok)throw new Error(d.error||"Upload video gagal");
-   const response=await fetch(d.signedUrl,{method:"PUT",
-    headers:{"content-type":"video/mp4","x-upsert":"false"},body:file});
-   if(!response.ok)throw new Error("Video gagal diunggah ke penyimpanan (HTTP "+response.status+")");
+    body:JSON.stringify({type:mime,size:file.size})});
+   const d=await r.json();if(!r.ok)throw new Error(d.error||"Gagal menyiapkan unggahan media");
+   const response=await fetch(d.signedUrl,{method:"PUT",headers:{"content-type":mime,"x-upsert":"false"},body:file});
+   if(!response.ok)throw new Error("Gagal menyimpan media privat (HTTP "+response.status+"). Coba file lebih kecil.");
    const url=URL.createObjectURL(file);objectUrls.current.push(url);
-   setVideoPreviews(prev=>({...prev,[i]:url}));setVideoNames(prev=>({...prev,[i]:file.name}));
-   edit(i,{type:"VIDEO",media_url:d.path});setError("");
+   setMediaPreviews(prev=>({...prev,[i]:url}));setMediaNames(prev=>({...prev,[i]:file.name}));
+   edit(i,{type,media_url:d.path});setError("");
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}
  }
  async function save(){
@@ -316,7 +322,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
      })}
      {!visible.length&&<div className="empty">{recipientSource==="existing"&&loading?"Memuat kontak…":recipientSource==="excel"?
       "Impor Excel untuk menyiapkan nomor baru.":recipientSource==="manual"?
-      "Isi tabel manual, lalu pilih Masukkan ke penerima.":"Tidak ada kontak yang cocok. Kontak berizin maupun yang belum berizin tetap dapat ditampilkan."}</div>}
+      "Isi kontak manual lalu simpan draft. Baris manual ikut otomatis.":"Tidak ada kontak yang cocok. Kontak berizin maupun yang belum berizin tetap dapat ditampilkan."}</div>}
     </div>
     {recipientSource==="existing"&&<div className="actions section campaignRecipientPagination">
      <button className="btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Sebelumnya</button>
@@ -337,29 +343,30 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
     </details>}
     <div className="notice section">Kontak boleh dipilih sebagai draft, tetapi hanya yang memiliki izin promosi dan tidak diblokir yang dapat dikirimi Blash. Pengecualian di sini hanya berlaku untuk Blash ini. <Link href="/contacts">Kelola izin kontak</Link>.</div>
    </section>
-   <section className="oneCampaignBlock"><h3>3. Pesan dan unggah video MP4</h3>
+   <section className="oneCampaignBlock"><h3>3. Poster, teks, dan video</h3><p className="muted">Unggah poster langsung dari HP. Gambar akan dikirim sebagai media WhatsApp, bukan sekadar link.</p>
     <div className="campaignCompose">
      <div>{steps.map((step,i)=><div key={i} className="messageEditor">
       <div className="sectionTitle"><h3>Pesan {i+1}</h3>{i>0&&<button className="btn" onClick={()=>setSteps(xs=>xs.filter((_,j)=>j!==i))}>Hapus</button>}</div>
       <label className="fieldLabel">Jenis pesan<select className="input" value={step.type}
-        onChange={e=>edit(i,{type:e.target.value as "TEXT"|"VIDEO"})}>
-       <option value="TEXT">Teks WhatsApp</option><option value="VIDEO">Video MP4 dengan caption</option></select>
+        onChange={e=>{const type=e.target.value as CampaignStep["type"];edit(i,{type,media_url:""});setMediaNames(prev=>{const next={...prev};delete next[i];return next});setMediaPreviews(prev=>{const next={...prev};delete next[i];return next})}}>
+       <option value="IMAGE">Poster / gambar + caption</option><option value="TEXT">Teks WhatsApp</option><option value="VIDEO">Video MP4 + caption</option></select>
       </label>
-      {step.type==="VIDEO"&&<div className="campaignVideoUploader">
-       {!videoSupported&&<div className="notice">
-         Video bisa diunggah dan disimpan sebagai draft. Worker WAHA belum mengonfirmasi kemampuan video; kirim video uji ke nomor owner terlebih dahulu. Blash massal hanya dapat dimulai setelah uji video diterima gateway.
-       </div>}
-       <label className="fieldLabel">Unggah MP4 dari laptop atau HP (maks. 25 MB)
-        <input type="file" className="input" accept=".mp4,video/mp4" disabled={busy}
+      {(step.type==="IMAGE"||step.type==="VIDEO")&&<div className="campaignVideoUploader">
+       {step.type==="VIDEO"&&!videoSupported&&<div className="notice">Video belum terverifikasi oleh worker WAHA. Lakukan uji ke nomor sendiri terlebih dahulu atau pilih Poster.</div>}
+       <label className="fieldLabel">{step.type==="IMAGE"?"Pilih poster (JPG/PNG/WebP · maks. 8 MB)":"Pilih video MP4 (maks. 25 MB)"}
+        <input type="file" className="input" accept={step.type==="IMAGE"?"image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp":".mp4,video/mp4"} disabled={busy}
          onChange={e=>void upload(i,e.target.files?.[0])}/></label>
-       {busy&&<small className="muted">Sedang memproses unggahan. Jangan tutup halaman.</small>}
-       {videoPreviews[i]&&<video className="campaignVideoPreview" src={videoPreviews[i]} controls playsInline preload="metadata"/>}
-       {step.media_url&&<div className="notice">Video siap: {videoNames[i]||"MP4 tersimpan"} · Disimpan privat di Supabase.</div>}
-       <label className="fieldLabel">Atau URL video HTTPS
+       {busy&&<small className="muted">Sedang mengunggah media…</small>}
+       {mediaPreviews[i]&&(step.type==="IMAGE"?<img className="campaignPosterPreview" src={mediaPreviews[i]} alt="Pratinjau poster"/>:
+        <video className="campaignVideoPreview" src={mediaPreviews[i]} controls playsInline preload="metadata"/>)}
+       {step.media_url&&<div className="notice">Media siap: {mediaNames[i]||"Berkas terpilih"} · {step.media_url.startsWith("storage://")?"Tersimpan privat di Supabase.":"Tautan langsung eksternal."}</div>}
+       <label className="fieldLabel">Atau URL {step.type==="IMAGE"?"gambar langsung (.jpg/.png/.webp)":"video HTTPS"}
         <input className="input" value={step.media_url||""}
-         onChange={e=>edit(i,{media_url:e.target.value})} placeholder="https://.../video.mp4"/></label>
+         onChange={e=>{edit(i,{media_url:e.target.value});setMediaPreviews(prev=>{const next={...prev};delete next[i];return next})}}
+         placeholder={step.type==="IMAGE"?"https://domain.com/poster.jpg":"https://domain.com/video.mp4"}/></label>
+       {step.type==="IMAGE"&&<small className="muted">Link berbagi Google Drive bukan tautan gambar langsung. Unduh posternya dari Drive lalu unggah di sini untuk hasil yang lebih andal.</small>}
       </div>}
-      <label className="fieldLabel">{step.type==="VIDEO"?"Caption video":"Pesan teks"}
+      <label className="fieldLabel">{step.type==="IMAGE"?"Caption poster (opsional)":step.type==="VIDEO"?"Caption video":"Pesan teks"}
        <textarea className="input" rows={4} maxLength={4000} value={step.body}
         onChange={e=>edit(i,{body:e.target.value})} placeholder="Halo {{nama}}, ada solusi untuk..."/></label>
       <small className="muted">{step.body.length}/4.000 · Personalisasi dengan {"{{nama}}"}</small>
@@ -368,8 +375,10 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
      </div>
      <aside className="messagePreview"><small>PRATINJAU UNTUK PELANGGAN</small><h3>{previewName}</h3>
       {steps.map((step,i)=><div className="previewBubble" key={i}>
-       {step.type==="VIDEO"&&(videoPreviews[i]?<video src={videoPreviews[i]} className="campaignPreviewMiniVideo" controls playsInline preload="metadata"/>:
+       {step.type==="VIDEO"&&(mediaPreviews[i]?<video src={mediaPreviews[i]} className="campaignPreviewMiniVideo" controls playsInline preload="metadata"/>:
         <div className="videoPlaceholder">▶ Video MP4</div>)}
+       {step.type==="IMAGE"&&(mediaPreviews[i]?<img src={mediaPreviews[i]} className="campaignPosterPreview" alt="Pratinjau gambar penerima"/>:
+        <div className="videoPlaceholder">▧ Poster JPG / PNG</div>)}
        <p>{step.body.replaceAll("{{nama}}",previewName)||"Isi pesan akan muncul di sini."}</p>
       </div>)}
      </aside>
@@ -382,7 +391,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
      <div><small>Penerima disiapkan</small><b>{new Set([...selected,...manualRows.filter(x=>x.name.trim()&&x.phone.trim()).map(x=>x.phone)]).size}</b></div>
      <div><small>Kontak berizin saat ini</small><b>{eligibleVisible}</b></div>
-     <div><small>Format</small><b>{steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
+     <div><small>Format</small><b>{steps.some(x=>x.type==="IMAGE")?"Poster/gambar":steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
     </div>
     <div className="notice">Blash disimpan sebagai draft, termasuk kontak manual yang masih diisi. Pengiriman membutuhkan izin promosi yang valid dan uji ke nomor sendiri. Video baru boleh dikirim massal setelah uji video diterima gateway.</div>
    </section>
