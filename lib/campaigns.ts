@@ -6,7 +6,7 @@ export type ContactInput = {
   consent?: boolean;
 };
 export type CampaignStep = {
-  type: "TEXT" | "VIDEO";
+  type: "TEXT" | "IMAGE" | "VIDEO";
   body: string;
   media_url?: string;
 };
@@ -99,39 +99,38 @@ export function validateSteps(value: unknown): CampaignStep[] {
   return value.map((s) => {
     if (
       !s ||
-      !["TEXT", "VIDEO"].includes(s.type) ||
+      !["TEXT", "IMAGE", "VIDEO"].includes(s.type) ||
       typeof s.body !== "string" ||
-      !s.body.trim() ||
+      (s.type !== "IMAGE" && !s.body.trim()) ||
       s.body.length > 4000
     )
-      throw new Error("Pesan harus berisi 1–4000 karakter");
+      throw new Error("Teks/video membutuhkan caption atau pesan; poster boleh tanpa caption. Maksimal 4.000 karakter.");
     if (/\{\{|\}\}/.test(s.body.replaceAll("{{nama}}", "")))
       throw new Error("Variabel yang tersedia hanya {{nama}}");
-    if (
-      s.type === "VIDEO" &&
-      !/^storage:\/\/mycontrol-campaigns\/[a-f0-9-]{36}\.mp4$/.test(
-        s.media_url || "",
-      )
-    ) {
-      const url = new URL(String(s.media_url || ""));
-      if (
-        url.protocol !== "https:" ||
-        url.username ||
-        url.password ||
-        url.port ||
-        !url.hostname.includes(".") ||
-        /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(
-          url.hostname,
-        ) ||
-        url.hostname.includes(":") ||
-        s.media_url.length > 2048
-      )
-        throw new Error("Video harus memakai URL HTTPS publik");
+    if (s.type === "IMAGE" || s.type === "VIDEO") {
+      const media = String(s.media_url || "");
+      const privatePath = s.type === "IMAGE"
+        ? /^storage:\/\/mycontrol-campaigns\/[a-f0-9-]{36}\.(jpg|jpeg|png|webp)$/i.test(media)
+        : /^storage:\/\/mycontrol-campaigns\/[a-f0-9-]{36}\.mp4$/i.test(media);
+      if (!privatePath) {
+        let url: URL;
+        try { url = new URL(media); }
+        catch { throw new Error("Pilih berkas media atau masukkan URL HTTPS langsung yang valid"); }
+        if (
+          url.protocol !== "https:" ||
+          url.username || url.password || url.port || !url.hostname.includes(".") ||
+          /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url.hostname) ||
+          url.hostname.includes(":") || media.length > 2048
+        ) throw new Error("Media memerlukan URL HTTPS publik");
+        if (s.type === "IMAGE" && !/\.(jpe?g|png|webp)$/i.test(url.pathname)) {
+          throw new Error("URL poster harus langsung ke file .jpg, .jpeg, .png, atau .webp. Link berbagi Google Drive bukan tautan gambar langsung; gunakan unggah poster.");
+        }
+      }
     }
     return {
       type: s.type,
       body: s.body.trim(),
-      ...(s.type === "VIDEO" ? { media_url: s.media_url } : {}),
+      ...(s.type !== "TEXT" ? { media_url: s.media_url } : {}),
     };
   });
 }
