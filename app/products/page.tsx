@@ -25,6 +25,18 @@ async function readResponse(res:Response){
   return json;
 }
 
+function KnowledgeField({field,label,rows=0,span=false,form,onChange}:{
+  field:keyof FormData;label:string;rows?:number;span?:boolean;
+  form:FormData;onChange:(name:keyof FormData,value:string)=>void
+}){
+  return <label className={"fieldLabel"+(span?" span2":"")}>
+    {label}
+    {rows>0?
+      <textarea className="input" rows={rows} value={form[field]} onChange={e=>onChange(field,e.target.value)}/>:
+      <input className="input" value={form[field]} onChange={e=>onChange(field,e.target.value)}/>}
+  </label>;
+}
+
 export default function Products(){
   const store=useStore();
   const [sheetState,setSheetState]=useState<SheetStatus|null>(null);
@@ -123,15 +135,6 @@ export default function Products(){
     }catch(e){setSyncError((e as Error).message);}
   }
 
-  const Field=({field,label,rows=0,span=false}:{field:keyof FormData;label:string;rows?:number;span?:boolean})=>(
-    <label className={"fieldLabel"+(span?" span2":"")}>
-      {label}
-      {rows>0?
-        <textarea className="input" rows={rows} value={form[field]} onChange={e=>setField(field,e.target.value)}/>:
-        <input className="input" value={form[field]} onChange={e=>setField(field,e.target.value)}/>}
-    </label>
-  );
-
   return <>
     <div className="pageHead">
       <div>
@@ -193,8 +196,8 @@ export default function Products(){
           display:"flex",flexDirection:"column",gap:15,minHeight:0}}>
           {detailBusy?<p>Memuat data produk lengkap, FAQ, dan panduan AI…</p>:<>
             <div className="formGrid">
-              <Field field="product_id" label="ID produk" />
-              <Field field="product_name" label="Nama produk" />
+              <KnowledgeField form={form} onChange={setField} field="product_id" label="ID produk" />
+              <KnowledgeField form={form} onChange={setField} field="product_name" label="Nama produk" />
               <label className="fieldLabel">Status
                 <select className="input" value={form.status} onChange={e=>setField("status",e.target.value)}>
                   <option value="ACTIVE">Aktif · boleh ditawarkan AI</option>
@@ -207,19 +210,19 @@ export default function Products(){
                   <option value="PERLU_VERIFIKASI_FITUR">Perlu verifikasi</option>
                   <option value="TERVERIFIKASI">Sudah terverifikasi owner</option>
                 </select></label>
-              <Field field="base_price" label="Harga utama (kosong = belum diketahui)" />
-              <Field field="promo_price" label="Harga promo (opsional)" />
-              <Field field="cost_hpp" label="HPP (internal, tidak diumumkan AI)" />
-              <Field field="delivery_type" label="Jenis pengiriman / delivery" />
-              <Field field="short_description" label="Ringkasan katalog" rows={3} span/>
-              <Field field="full_description" label="Penjelasan lengkap & cara kerja" rows={6} span/>
-              <Field field="benefits" label="Manfaat / keunggulan terverifikasi" rows={4} span/>
-              <Field field="target_customer" label="Target pelanggan" rows={3} span/>
-              <Field field="faq_qna" label="FAQ untuk AI (satu pasangan tanya-jawab per baris)" rows={6} span/>
-              <Field field="objection_handling" label="Cara menjawab keberatan pelanggan" rows={5} span/>
-              <Field field="keywords" label="Kata kunci pencarian (pisahkan koma)" rows={2} span/>
-              <Field field="demo_url" label="URL demo HTTPS (jika ada)" span/>
-              <Field field="checkout_url" label="URL pembelian HTTPS (jika ada)" span/>
+              <KnowledgeField form={form} onChange={setField} field="base_price" label="Harga utama (kosong = belum diketahui)" />
+              <KnowledgeField form={form} onChange={setField} field="promo_price" label="Harga promo (opsional)" />
+              <KnowledgeField form={form} onChange={setField} field="cost_hpp" label="HPP (internal, tidak diumumkan AI)" />
+              <KnowledgeField form={form} onChange={setField} field="delivery_type" label="Jenis pengiriman / delivery" />
+              <KnowledgeField form={form} onChange={setField} field="short_description" label="Ringkasan katalog" rows={3} span/>
+              <KnowledgeField form={form} onChange={setField} field="full_description" label="Penjelasan lengkap & cara kerja" rows={6} span/>
+              <KnowledgeField form={form} onChange={setField} field="benefits" label="Manfaat / keunggulan terverifikasi" rows={4} span/>
+              <KnowledgeField form={form} onChange={setField} field="target_customer" label="Target pelanggan" rows={3} span/>
+              <KnowledgeField form={form} onChange={setField} field="faq_qna" label="FAQ untuk AI (satu pasangan tanya-jawab per baris)" rows={6} span/>
+              <KnowledgeField form={form} onChange={setField} field="objection_handling" label="Cara menjawab keberatan pelanggan" rows={5} span/>
+              <KnowledgeField form={form} onChange={setField} field="keywords" label="Kata kunci pencarian (pisahkan koma)" rows={2} span/>
+              <KnowledgeField form={form} onChange={setField} field="demo_url" label="URL demo HTTPS (jika ada)" span/>
+              <KnowledgeField form={form} onChange={setField} field="checkout_url" label="URL pembelian HTTPS (jika ada)" span/>
             </div>
             <small className="muted">Informasi yang tidak terverifikasi tidak boleh dijanjikan oleh AI. Jika Google belum terhubung, perubahan disimpan di My Control dan diberi status menunggu sinkronisasi.</small>
           </>}
