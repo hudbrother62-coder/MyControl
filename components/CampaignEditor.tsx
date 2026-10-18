@@ -46,7 +46,7 @@ function parseImportedRows(rows:string[][]){
     consent:optin,consent_evidence:optin?proof.slice(0,500):""});
   }catch(e){errors.push("Baris "+(index+2)+": "+(e as Error).message)}
  }
- if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per kampanye");
+ if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
  return {contacts,errors,duplicates};
 }
 export default function CampaignEditor({products,onDone,onClose,videoSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean}){
@@ -168,7 +168,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
   sheet.getRow(1).font={bold:true};
   const buf=await wb.xlsx.writeBuffer();
   const blob=new Blob([new Uint8Array(buf)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="template-penerima-kampanye.xlsx";a.click();
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="template-penerima-Blash.xlsx";a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
  async function upload(i:number,file?:File){
@@ -240,7 +240,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
      <Link className="btn campaignManageContact" href="/contacts">Menu kontak →</Link>
     </div>
     {recipientSource==="excel"&&<div className="campaignImportPanel">
-      <div className="sectionTitle"><div><b>Excel/CSV khusus kampanye</b>
+      <div className="sectionTitle"><div><b>Excel/CSV khusus Blash</b>
        <p className="muted">Tidak langsung masuk Kontak Utama. Nomor baru akan muncul setelah pesan diterima gateway atau ada interaksi masuk.</p>
       </div><button className="btn" onClick={()=>void template()}>Template Excel</button></div>
       <label className="fieldLabel">Pilih file Excel atau CSV (.xlsx / .csv)
@@ -308,7 +308,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
        <span className={"badge "+(permitted?"ok":"warn")}>
         {!valid?"ID belum valid":blocked?"Blokir owner":opted?"Berhenti promosi":permitted?"Izin tercatat":"Belum ada izin"}
        </span>
-       <label className="campaignRecipientExclude" title="Lewati nomor ini untuk kampanye ini">
+       <label className="campaignRecipientExclude" title="Lewati nomor ini untuk Blash ini">
         <input type="checkbox" disabled={!valid} checked={omit} onChange={()=>{if(phone)toggleExclude(phone)}}/>
         <span>Lewati</span>
        </label>
@@ -335,7 +335,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
       {selected.length>100&&<p className="muted">Ditampilkan 100 dari {selected.length} kontak. Gunakan pencarian dan pilihan untuk mengelola seluruh daftar.</p>}
      </div>
     </details>}
-    <div className="notice section">Kontak boleh dipilih sebagai draft, tetapi hanya yang memiliki izin promosi dan tidak diblokir yang dapat dikirimi kampanye. Pengecualian di sini hanya berlaku untuk kampanye ini. <Link href="/contacts">Kelola izin kontak</Link>.</div>
+    <div className="notice section">Kontak boleh dipilih sebagai draft, tetapi hanya yang memiliki izin promosi dan tidak diblokir yang dapat dikirimi Blash. Pengecualian di sini hanya berlaku untuk Blash ini. <Link href="/contacts">Kelola izin kontak</Link>.</div>
    </section>
    <section className="oneCampaignBlock"><h3>3. Pesan dan unggah video MP4</h3>
     <div className="campaignCompose">
@@ -347,7 +347,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
       </label>
       {step.type==="VIDEO"&&<div className="campaignVideoUploader">
        {!videoSupported&&<div className="notice">
-         Video bisa diunggah dan disimpan sebagai draft. Worker WAHA belum mengonfirmasi kemampuan video; kirim video uji ke nomor owner terlebih dahulu. Kampanye massal hanya dapat dimulai setelah uji video diterima gateway.
+         Video bisa diunggah dan disimpan sebagai draft. Worker WAHA belum mengonfirmasi kemampuan video; kirim video uji ke nomor owner terlebih dahulu. Blash massal hanya dapat dimulai setelah uji video diterima gateway.
        </div>}
        <label className="fieldLabel">Unggah MP4 dari laptop atau HP (maks. 25 MB)
         <input type="file" className="input" accept=".mp4,video/mp4" disabled={busy}
