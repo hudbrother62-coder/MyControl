@@ -21,13 +21,14 @@ export async function GET(req: Request) {
     }
     if (view === "detail") {
       const id = uuid(q.get("id"));
-      const [campaign, recipients, audit]=await Promise.all([
+      const [campaign, recipients, audit, readiness]=await Promise.all([
         db('mc_campaigns?id=eq.'+id),
         db('mc_campaign_recipients?campaign_id=eq.'+id+'&order=phone&limit=50&offset='+offset),
-        db('mc_campaign_audit?campaign_id=eq.'+id+'&order=created_at.desc&limit=20')
+        db('mc_campaign_audit?campaign_id=eq.'+id+'&order=created_at.desc&limit=20'),
+        rpc('mc_campaign_readiness',{p_id:id})
       ]);
       const jobs=recipients.length?await db('mc_outbound_jobs?select=id,recipient_id,step_no,status,delivery_status,last_error&recipient_id=in.('+recipients.map((r:any)=>r.id).join(',')+')&order=step_no&limit=100'):[];
-      return Response.json({ campaign: campaign[0], recipients, jobs, audit });
+      return Response.json({ campaign: campaign[0], recipients, jobs, audit, readiness });
     }
     if (view === "crm"){
       const stage=q.get('stage');if(stage&&!['NEW','INTERESTED','FOLLOW_UP','PENDING','AWAITING_PAYMENT','WON','LOST'].includes(stage))throw new Error('Tahap tidak valid');
