@@ -76,7 +76,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
  const visible=recipientSource==="existing"?known:recipientSource==="excel"?excelRows:manualVisible;
  const previewName=known.find(c=>selected.includes(c.phone||""))?.name||allImported.find(c=>selected.includes(c.phone))?.name||"Pelanggan";
  const importedSelected=allImported.filter(c=>selected.includes(c.phone));
- const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...allImported.filter(c=>c.consent).map(c=>c.phone)]);
+ const blockedKnown=new Set(known.filter(c=>c.opted_out_at||c.exclusion).map(c=>c.phone));
+ const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...allImported.filter(c=>c.consent).map(c=>c.phone)].filter(phone=>!blockedKnown.has(phone)));
  const eligibleVisible=selected.filter(phone=>locallyApproved.has(phone)&&!excluded.includes(phone)).length;
  const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
@@ -300,7 +301,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported}:
       "Impor Excel untuk menyiapkan nomor baru.":recipientSource==="manual"?
       "Isi tabel manual, lalu pilih Masukkan ke penerima.":"Tidak ada kontak yang cocok. Kontak berizin maupun yang belum berizin tetap dapat ditampilkan."}</div>}
     </div>
-    {recipientSource==="existing"&&<div className="actions section">
+    {recipientSource==="existing"&&<div className="actions section campaignRecipientPagination">
      <button className="btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Sebelumnya</button>
      <span>Halaman {Math.floor(offset/50)+1}</span>
      <button className="btn" disabled={(data?.contacts?.length||0)<50} onClick={()=>setOffset(offset+50)}>Berikutnya</button>
