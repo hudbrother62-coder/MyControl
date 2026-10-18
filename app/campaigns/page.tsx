@@ -16,38 +16,54 @@ function Detail({
   const [offset,setOffset]=useState(0);
   const { data, error, loading, refresh } = useCampaignData("?view=detail&id="+id+"&offset="+offset);
   const [notice, setNotice] = useState(""),
+    [actionError, setActionError] = useState(""),
     [busy, setBusy] = useState(false),
     [schedule, setSchedule] = useState(""),
     [testPhone, setTestPhone] = useState(""),
     [confirm, setConfirm] = useState("");
   const c = data?.campaign;
+  const readiness = data?.readiness;
+  const testReady = readiness?.test_status === "SENT";
+  const eligibleCount = readiness?.eligible_total ?? 0;
   async function action(action: string) {
+    if (busy) return;
     setBusy(true);
+    setActionError("");
+    setNotice("");
     try {
-      await campaignRequest({
+      if (action === "SCHEDULE") {
+        if (!schedule) throw new Error("Pilih tanggal dan jam WIB dahulu.");
+        if (new Date(schedule + ":00+07:00").getTime() <= Date.now())
+          throw new Error("Jadwal harus berada di waktu mendatang (WIB).");
+      }
+      const result = await campaignRequest({
         action,
         id,
-        schedule: schedule ? schedule + ":00+07:00" : null,
+        schedule: action === "SCHEDULE" ? schedule + ":00+07:00" : null,
       });
-      setNotice("Perubahan tersimpan");
+      if (result?.ok === false) throw new Error(result.error || "Aksi belum berhasil");
       setConfirm("");
+      setNotice(action === "SCHEDULE" ? "Blash berhasil dijadwalkan. Periksa status Terjadwal." : "Tindakan berhasil diproses.");
       await refresh();
       onChange();
     } catch (e) {
-      setNotice((e as Error).message);
+      setActionError((e as Error).message || "Permintaan gagal. Periksa koneksi dan coba lagi.");
     } finally {
       setBusy(false);
     }
   }
   async function test() {
+    if (busy) return;
     setBusy(true);
+    setActionError("");
+    setNotice("");
     try {
-      const r = await campaignRequest({ action: "test", id, phone: testPhone });
-      setNotice("Uji masuk antrean. Buka kampanye uji untuk memeriksa hasil.");
+      await campaignRequest({ action: "test", id, phone: testPhone });
+      setNotice("Pesan uji masuk antrean. Tunggu status Diterima gateway dan cek video di WhatsApp milikmu sebelum memulai Blash.");
       await refresh();
       onChange();
     } catch (e) {
-      setNotice((e as Error).message);
+      setActionError((e as Error).message || "Pengiriman uji gagal.");
     } finally {
       setBusy(false);
     }
@@ -59,7 +75,7 @@ function Detail({
           Kembali
         </button>
         <p>
-          {error || (loading ? "Memuat detail…" : "Kampanye tidak ditemukan")}
+          {error || (loading ? "Memuat detail…" : "Blash tidak ditemukan")}
         </p>
       </div>
     );
@@ -68,7 +84,7 @@ function Detail({
       <div className="pageHead">
         <div>
           <button className="linkBtn" onClick={onClose}>
-            ← Semua kampanye
+            ← Semua Blash
           </button>
           <h2>{c.name}</h2>
           <span className="badge">{labels[c.status] || c.status}</span>
@@ -105,6 +121,15 @@ function Detail({
       </div>
       {c.status === "DRAFT" && (
         <>
+          <div className="campaignReadiness section" role="status">
+            <strong>Siapkan pengiriman Blash</strong>
+            <div className="campaignReadinessGrid">
+              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima memenuhi syarat izin</span>
+              <span className={testReady ? "ready" : "blocked"}>2. {testReady ? "Uji diterima gateway" : "Uji pengiriman belum berhasil"}</span>
+              <span className={readiness?.has_video && !readiness?.video_supported && !testReady ? "blocked" : "ready"}>3. {readiness?.has_video ? "Video: lakukan uji ke nomor sendiri" : "Pesan teks siap diuji"}</span>
+            </div>
+            {eligibleCount === 0 && <p className="muted">Semua penerima belum berizin atau dikecualikan. Draft boleh disimpan, tetapi Blash tidak dapat mengirim sebelum izin promosi pelanggan tercatat.</p>}
+          </div>
           <div className="campaignToolbar section">
             <input
               className="input"
@@ -134,49 +159,50 @@ function Detail({
             <button
               className="btn primary"
               disabled={busy}
-              onClick={() => setConfirm(schedule ? "SCHEDULE" : "START")}
+              onClick={() => { setActionError(""); setNotice(""); setConfirm(schedule ? "SCHEDULE" : "START"); }}
             >
-              {schedule ? "Jadwalkan" : "Mulai kampanye"}
+              {schedule ? "Jadwalkan Blash" : "Mulai Blash"}
             </button>
           </div>
           <p className="muted">
-            Uji harus diterima gateway terlebih dahulu. Mulai hanya setelah kamu
-            memeriksa video dan teks di WhatsApp. Konten dikunci ketika dikirim.
+            Uji ke nomor WhatsApp sendiri wajib diterima gateway sebelum Blash dijadwalkan atau dimulai. Untuk video, periksa juga apakah MP4 benar-benar diterima dan bisa diputar.
           </p>
         </>
       )}
       {confirm && (
-        <div className="notice section" role="alert">
+        <div className="notice section campaignActionConfirm" role="group" aria-label="Konfirmasi Blash">
           <b>
             {confirm === "CANCEL"
               ? "Batalkan sisa pengiriman?"
-              : "Kirim ke " + data.recipients.length + " penerima?"}
+              : confirm === "SCHEDULE" ? "Jadwalkan Blash untuk " + new Date(schedule + ":00+07:00").toLocaleString("id-ID", {timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"}) + " WIB?"
+              : "Mulai Blash untuk " + (c?.recipient_count ?? data.recipients.length) + " penerima?"}
           </b>
-          <p>Pesan yang sudah diproses gateway tidak dapat ditarik kembali.</p>
+          <p>Server akan memeriksa izin promosi, hasil uji, dan kesiapan worker. Pesan yang sudah dikirim tidak dapat ditarik kembali.</p>
+          {actionError && <div className="notice errorNotice campaignInlineError" role="alert"><strong>Tidak dapat melanjutkan:</strong> {actionError}</div>}
           <div className="actions">
             <button
               className="btn primary"
               disabled={busy}
               onClick={() => void action(confirm)}
             >
-              Ya, {confirm === "CANCEL" ? "batalkan" : "lanjutkan"}
+              {busy ? "Memeriksa…" : confirm === "CANCEL" ? "Ya, batalkan" : confirm === "SCHEDULE" ? "Ya, jadwalkan" : "Ya, mulai"}
             </button>
-            <button className="btn" onClick={() => setConfirm("")}>
+            <button className="btn" disabled={busy} onClick={() => {setConfirm("");setActionError("");}}>
               Kembali
             </button>
           </div>
         </div>
       )}
-      {(error || notice) && (
-        <div className="notice section" role="status">
-          {error || notice}
+      {(error || notice || (actionError && !confirm)) && (
+        <div className={"notice section "+((error||actionError)?"errorNotice":"")} role={(error||actionError)?"alert":"status"}>
+          {error || actionError || notice}
         </div>
       )}
       <div className="notice section">
         Diterima gateway belum berarti sampai atau dibaca. UNKNOWN memerlukan
         rekonsiliasi; tidak dikirim ulang otomatis.
       </div>
-      <div className="tableWrap section">
+      <div className="tableWrap section campaignDetailTable">
         <table className="table">
           <thead>
             <tr>
@@ -189,11 +215,11 @@ function Detail({
           <tbody>
             {data.recipients.map((r: any) => (
               <tr key={r.id}>
-                <td>
+                <td data-label="Penerima">
                   <b>{r.name}</b>
                   <div className="muted">+{r.phone}</div>
                 </td>
-                <td>
+                <td data-label="Pesan">
                   {r.excluded_reason ||
                     data.jobs
                       .filter((j: any) => j.recipient_id === r.id)
@@ -216,8 +242,8 @@ function Detail({
                         </div>
                       ))}
                 </td>
-                <td>{r.replied_at ? "Sudah membalas" : "Belum ada balasan"}</td>
-                <td>
+                <td data-label="Balasan">{r.replied_at ? "Sudah membalas" : "Belum ada balasan"}</td>
+                <td data-label="Aksi">
                   <Link
                     className="btn"
                     href={
@@ -260,7 +286,7 @@ export default function Campaigns() {
     <>
       <div className="pageHead">
         <div>
-          <h1>Kampanye & Promosi</h1>
+          <h1>Blash WhatsApp</h1>
           <p>Kelola penawaran, bekali AI dengan pengetahuan produk, dan pantau pengiriman.</p>
         </div>
         <div className="actions">
@@ -272,7 +298,7 @@ export default function Campaigns() {
               await refresh();
             }}
           >
-            Jeda semua kampanye
+            Jeda semua Blash
           </button>
           <button
             className="btn primary"
@@ -281,19 +307,19 @@ export default function Campaigns() {
               setActive("");
             }}
           >
-            + Buat kampanye
+            + Buat Blash
           </button>
         </div>
       </div>
       <div className="campaignMetrics">
         <div className="card">
-          <small>Kampanye berjalan</small>
+          <small>Blash berjalan</small>
           <strong>
             {campaigns.filter((c: any) => c.status === "RUNNING").length}
           </strong>
         </div>
         <div className="card">
-          <small>Kontak membalas kampanye</small>
+          <small>Kontak membalas Blash</small>
           <strong>
             {campaigns.reduce((n: number, c: any) => n + Number(c.replies), 0)}
           </strong>
@@ -313,7 +339,7 @@ export default function Campaigns() {
       </div>
       {!online && (
         <div className="notice section">
-          Pengiriman menunggu worker kampanye v2.{" "}
+          Pengiriman menunggu worker Blash v2.{" "}
           <a href="/api/campaigns/workflow">Pengirim v2</a> ·{" "}
           <a href="/api/campaigns/workflow?kind=inbound">Penerima + delivery</a>{" "}
           · <a href="/api/campaigns/workflow?kind=ai">Bot Groq + CRM</a> ·{" "}
@@ -388,7 +414,7 @@ export default function Campaigns() {
           {!campaigns.length && (
             <div className="card empty">
               <strong>
-                {loading ? "Memuat kampanye…" : "Siapkan kampanye pertamamu"}
+                {loading ? "Memuat kampanye…" : "Siapkan Blash pertamamu"}
               </strong>
               Import kontak, pilih produk, lalu susun video dan pesan.
               Pengiriman selalu dimulai dari tindakanmu.
