@@ -370,8 +370,6 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
         <input type="file" className="input" accept={step.type==="IMAGE"?"image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp":".mp4,video/mp4"} disabled={busy}
          onChange={e=>void upload(i,e.target.files?.[0])}/></label>
        {busy&&<small className="muted">Sedang mengunggah media…</small>}
-       {mediaPreviews[i]&&(step.type==="IMAGE"?<img className="campaignPosterPreview" src={mediaPreviews[i]} alt="Pratinjau poster"/>:
-        <video className="campaignVideoPreview" src={mediaPreviews[i]} controls playsInline preload="metadata"/>)}
        {step.media_url&&<div className="notice" role="status">✓ Siap dikirim: {mediaNames[i]||"Media dari tautan"}</div>}
        <details className="blashExtra"><summary>Gunakan tautan file sebagai gantinya</summary>
        <label className="fieldLabel">Atau URL {step.type==="IMAGE"?"gambar langsung (.jpg/.png/.webp)":"video HTTPS"}
