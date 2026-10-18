@@ -33,6 +33,7 @@ function Detail({
     try {
       if (action === "START" || action === "SCHEDULE") {
         if (!readiness?.worker_online) throw new Error("Worker Blash n8n/WAHA belum aktif. Periksa Integrasi.");
+        if (readiness?.has_image && !readiness?.image_supported) throw new Error("Workflow n8n lama belum mendukung poster. Impor workflow terbaru dari tautan di bagian kesiapan pengiriman.");
         if (!testReady) throw new Error("Kirim uji ke nomor WhatsApp milikmu terlebih dahulu, lalu tunggu status Diterima gateway. Status uji sekarang: " + (readiness?.test_status || "belum ada") + ".");
         if (eligibleCount < 1) throw new Error("Tidak ada penerima yang memiliki izin promosi. Buka Menu Kontak, catat izin yang benar-benar diberikan pelanggan, atau buat Blash baru dengan kontak manual berizin.");
       }
@@ -63,6 +64,8 @@ function Detail({
     setActionError("");
     setNotice("");
     try {
+      if(readiness?.has_image && !readiness?.image_supported)
+        throw new Error("Pengiriman uji poster belum dapat dilakukan karena workflow n8n aktif masih versi lama. Perbarui workflow outbound terlebih dahulu.");
       await campaignRequest({ action: "test", id, phone: testPhone });
       setNotice("Pesan uji masuk antrean. Tunggu status Diterima gateway dan cek video di WhatsApp milikmu sebelum memulai Blash.");
       await refresh();
@@ -131,13 +134,20 @@ function Detail({
             <div className="campaignReadinessGrid">
               <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima memenuhi syarat izin</span>
               <span className={testReady ? "ready" : "blocked"}>2. {testReady ? "Uji diterima gateway" : "Uji pengiriman belum berhasil"}</span>
-              <span className={readiness?.has_video && !readiness?.video_supported && !testReady ? "blocked" : "ready"}>3. {readiness?.has_video ? "Video: lakukan uji ke nomor sendiri" : "Pesan teks siap diuji"}</span>
+              <span className={readiness?.has_image && !readiness?.image_supported ? "blocked" : "ready"}>3. {readiness?.has_image ? (readiness?.image_supported ? "Pengirim gambar WAHA siap diuji" : "Pengirim gambar di n8n belum diperbarui") : readiness?.has_video ? "Video harus diuji" : "Pesan teks siap diuji"}</span>
             </div>
             {eligibleCount === 0 && <p className="muted">Semua penerima belum berizin atau dikecualikan. Draft boleh disimpan, tetapi Blash tidak dapat mengirim sebelum izin promosi pelanggan tercatat.</p>}
+            {readiness?.has_image && !readiness?.image_supported && <p className="muted">Untuk poster, impor dan aktifkan workflow outbound terbaru di n8n. Jangan aktifkan workflow lama dan baru bersamaan. <a href="/api/campaigns/workflow?kind=all">Unduh workflow all-in-one terbaru</a> · <a href="/api/campaigns/workflow">Unduh modul outbound</a>.</p>}
+            <button type="button" className="btn" onClick={()=>void refresh()} disabled={busy}>Periksa ulang status uji dan worker</button>
           </div>
-          <div className="campaignToolbar section">
+          <div className="campaignTestPanel section">
+            <strong>Wajib: kirim uji ke nomor WhatsApp milik sendiri</strong>
+            <p className="muted">Masukkan nomor dengan awalan 08 atau 62. Tunggu antrean diterima gateway, cek poster/video di WhatsApp, kemudian periksa status dan mulai/jadwalkan Blash.</p>
+            <div className="campaignToolbar">
             <input
               className="input"
+              type="tel"
+              inputMode="tel"
               aria-label="Nomor uji"
               value={testPhone}
               onChange={(e) => setTestPhone(e.target.value)}
@@ -148,8 +158,10 @@ function Detail({
               disabled={busy || !testPhone}
               onClick={() => void test()}
             >
-              Kirim uji ke nomor ini
+              {busy ? "Menyiapkan uji…" : "Kirim uji sekarang"}
             </button>
+            </div>
+            {actionError && !confirm && <div className="notice errorNotice" role="alert">{actionError}</div>}
           </div>
           <div className="campaignToolbar section">
             <label className="fieldLabel">
