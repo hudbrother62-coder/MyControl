@@ -111,7 +111,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + ($('Claim Outbound Job').first().json.media_url ? '/api/sendVideo' : '/api/sendText')}}",
+        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + (!$('Claim Outbound Job').first().json.media_url ? '/api/sendText' : /\\.(jpe?g|png|webp)(?:\\?.*)?$/i.test($('Claim Outbound Job').first().json.media_url) ? '/api/sendImage' : '/api/sendVideo')}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -132,7 +132,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ (() => { const job = $('Claim Outbound Job').first().json; const payload = { session: $('Check WAHA Working').first().json.name, chatId: job.chat_id }; if (job.media_url) { payload.caption = job.body; payload.file = { url: job.media_url.startsWith('storage://') ? $env.SUPABASE_URL + '/storage/v1' + $('Sign Private Video').first().json.signedURL : job.media_url, mimetype: 'video/mp4', filename: 'promo.mp4' }; } else { payload.text = job.body; } return JSON.stringify(payload); })() }}",
+        "body": "={{ (() => { const job=$('Claim Outbound Job').first().json; const payload={session:$('Check WAHA Working').first().json.name,chatId:job.chat_id}; if(job.media_url){ const isImage=/\\.(jpe?g|png|webp)(?:\\?.*)?$/i.test(job.media_url); const ext=(job.media_url.match(/\\.(jpe?g|png|webp)(?:\\?.*)?$/i)||[])[1]?.toLowerCase()||'mp4'; const mime=isImage?(ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg'):'video/mp4'; const signed=job.media_url.startsWith('storage://')?$('Sign Private Video').first().json.signedURL:''; const url=job.media_url.startsWith('storage://')?(signed.startsWith('https://')?signed:$env.SUPABASE_URL + '/storage/v1' + signed):job.media_url; payload.caption=job.body||''; payload.file={url,mimetype:mime,filename:isImage?'poster.'+(ext==='jpeg'?'jpg':ext):'promo.mp4'}; }else{payload.text=job.body;} return JSON.stringify(payload); })() }}",
         "options": {
           "timeout": 60000
         }
@@ -258,7 +258,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_campaign_heartbeat'}}",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_campaign_heartbeat_v2'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -279,7 +279,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n-v2',p_session:$('Check WAHA Working').first().json.name,p_video:$env.WAHA_VIDEO_VERIFIED==='true'})}}",
+        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n-v2',p_session:$('Check WAHA Working').first().json.name,p_video:$env.WAHA_VIDEO_VERIFIED==='true',p_image:true})}}",
         "options": {
           "timeout": 10000
         }
