@@ -1,3 +1,4 @@
+import { probeWahaSession } from "./waha-probe";
 import { db, rpc } from "./database";
 async function check(url: string, headers: Record<string, string> = {}) {
   const r = await fetch(url, {
@@ -14,6 +15,10 @@ export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
   const wahaUrl = config?.settings?.waha_base_url || process.env.WAHA_BASE_URL;
   const n8nUrl = config?.settings?.n8n_base_url || process.env.N8N_BASE_URL;
 
+  const cutoverRows=names.includes("WAHA")?await db("bot_settings?select=value&key=eq.prime_store_waha_cutover&limit=1").catch(()=>[]):[];
+  const cutover=cutoverRows?.[0]?.value||{};
+  const targetSession=String(cutover.target_session||process.env.WAHA_SESSION||"default").trim();
+
   await Promise.all(
     names.map(async (name) => {
       try {
@@ -23,14 +28,13 @@ export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
         if (name === "WAHA") {
           if (!wahaUrl || !process.env.WAHA_API_KEY)
             throw new Error("Belum dikonfigurasi");
-          detail = await check(
-            wahaUrl.trim().replace(/\/+$/, "") +
-              "/api/sessions/" +
-              encodeURIComponent((process.env.WAHA_SESSION || "default").trim()),
-            { "X-Api-Key": process.env.WAHA_API_KEY },
-          );
-          if (detail.status !== "WORKING")
-            throw new Error("Session " + detail.status);
+          const probe=await probeWahaSession({
+            baseUrl:String(wahaUrl),apiKey:process.env.WAHA_API_KEY,
+            session:targetSession,meId:cutover.target_me_id,lid:cutover.target_lid
+          });
+          detail=probe;
+          if(!probe.ready)throw new Error(probe.error||"WAHA belum siap");
+
         }
         if (name === "N8N") {
           if (!n8nUrl) throw new Error("Belum dikonfigurasi");
@@ -52,8 +56,9 @@ export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
           detail:
             name === "WAHA"
               ? {
-                  session: (process.env.WAHA_SESSION || "default").trim(),
+                  session: targetSession,
                   status: detail.status,
+                  identity_verified:detail.identity_verified,
                 }
               : undefined,
         };

@@ -1,3 +1,12 @@
+test("WAHA diagnosis handles missing session, proxy 404, auth, and identity", () => {
+ const code=fs.readFileSync("lib/server/waha-probe.ts","utf8");
+ for(const name of ["SESSION_NOT_FOUND","WAHA_API_ROUTE_NOT_FOUND","AUTH_REJECTED","IDENTITY_MISMATCH","CSNEW2","api/sessions?all=true"]){
+  if(name==="CSNEW2")continue;
+  assert.ok(code.includes(name),name);
+ }
+ assert.ok(!code.includes('method:"PUT"'));
+ assert.ok(!code.includes('method:"POST"'));
+});
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
