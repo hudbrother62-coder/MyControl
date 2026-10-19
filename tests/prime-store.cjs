@@ -17,6 +17,7 @@ test.before(async()=>{
  if(fs.existsSync('database/037_prime_store_catalog_copy.sql')) await db.exec(fs.readFileSync('database/037_prime_store_catalog_copy.sql','utf8'));
  if(fs.existsSync('database/038_multi_product_payment_safety.sql')) await db.exec(fs.readFileSync('database/038_multi_product_payment_safety.sql','utf8'));
  await db.exec(fs.readFileSync('database/039_reply_delivery_policy.sql','utf8'));
+ await db.exec(fs.readFileSync('database/041_prime_store_correct_prices_and_welcome.sql','utf8'));
 });
 test.after(async()=>db?.close());
 test('each PRIME STORE product carries its own approved features without access links or unrelated copy',async()=>{
@@ -38,7 +39,7 @@ test('rollout keeps automation paused and installs only PRIME STORE active catal
  const c=await ctx('1@c.us');assert.equal(c.prime_store.brand,'PRIME STORE');
  assert.ok(!JSON.stringify(c.knowledge).includes('chat.whatsapp.com'));
  assert.ok(!JSON.stringify(c.knowledge).includes('.apk'));
- const kasir=c.knowledge.find(k=>k.source_key==='PS_KASIR');assert.equal(Number(kasir.payload.price),94000);assert.equal(kasir.payload.promo_price,null);
+ const kasir=c.knowledge.find(k=>k.source_key==='PS_KASIR');assert.equal(Number(kasir.payload.price),99000);assert.equal(kasir.payload.promo_price,null);
 });
 test('complete numbered FAQ retains nested steps and never leaks internal access URLs',async()=>{
  const rows=(await db.query("select source_key,payload from mc_runtime_knowledge where kind='FAQ' and source_key like 'PRIME_STORE_%' and active")).rows;
@@ -57,7 +58,7 @@ test('school context continues per contact, switches explicitly, and stays outsi
  await inbound('school@lid','sekarang HiTV','2026-10-19T00:02:00Z');
  assert.equal((await ctx('school@lid')).lead_state.CS_PRODUCT_FOCUS.product_id,'PS_FILM');
  const bundle=(await ctx('school@lid')).knowledge.find(k=>k.source_key==='PS_BUNDLE2');
- assert.equal(bundle.payload.bundle_product_ids.length,5);assert.ok(!bundle.payload.bundle_product_ids.includes('SP001'));
+ assert.equal(bundle.payload.bundle_product_ids.length,2);assert.deepEqual(bundle.payload.bundle_product_ids,['PS_FILM','PS_TV']);
 });
 test('all automatic paths reject product access, unapproved URLs, and attachments even after old payment',async()=>{
  for(const kind of ['AI_REPLY','FOLLOW_UP','CAMPAIGN'])for(const body of ['https://www.fctv33hd.surf/id','chat.whatsapp.com/invite','https://example.org/access','APK https://example.org/file']){
@@ -164,4 +165,28 @@ test('product explanation context withholds price and checkout URLs until asked'
  const run=message=>vm.runInNewContext('(function(){'+code+'})()',{$json:{knowledge:[{kind:'PRODUCT',source_key:'SP001',payload:{product_name:'Sekolapro',price:299000,plans:[{price:99000,checkout_url:'https://profit-meledak.store/sekolapro-1bulan'}]}}]},$:()=>({first:()=>({json:{chat_id:'school@lid',message_text:message}})})})[0].json.agent_input;
  const explain=run('Sekolapro itu apa?');assert.doesNotMatch(explain,/299000|99000|profit-meledak/);assert.match(explain,/sekolapro.com/);
  assert.match(run('Sekolapro berapa harganya?'),/299000/);
+});
+
+test('new lead receives full PRIME STORE catalog and no prices in greeting context',()=>{
+ const vm=require('node:vm'),js=fs.readFileSync('workflows/code/prime-store-input.js','utf8');
+ const sample={history:[],knowledge:[{kind:'PRODUCT',source_key:'PS_KASIR',payload:{product_name:'Kasir Kilat',price:99000,full_description:'Harga normal Rp99.000.\\nKasir mencatat transaksi.'}}]};
+ const run=message=>JSON.parse(vm.runInNewContext('(function(){'+js+'})()',{$json:sample,$:()=>({first:()=>({json:{chat_id:'new@lid',message_text:message}})})})[0].json.agent_input.split('SOURCED CONTEXT:\\n')[1].split('\\nJika pertama kali')[0]);
+ const greeting=run('hai kak');
+ assert.equal(greeting.response_policy.first_greeting,true);
+ assert.equal(greeting.storefront_catalog.length,7);
+ assert.equal(greeting.official_products.length,0);
+ assert.doesNotMatch(JSON.stringify(greeting),/99000/);
+ const explain=run('Kasir Kilat untuk apa?');
+ assert.doesNotMatch(JSON.stringify(explain.official_products),/99000/);
+ assert.match(explain.official_products[0].description,/mencatat transaksi/);
+});
+test('official requested prices and fixed pair are authoritative',async()=>{
+ const p=(await db.query("select id,base_price from products where id in ('PS_KASIR','PS_BUNDLE2','SP001') order by id")).rows;
+ assert.equal(Number(p.find(x=>x.id==='PS_KASIR').base_price),99000);
+ assert.equal(Number(p.find(x=>x.id==='PS_BUNDLE2').base_price),119000);
+ assert.equal(Number(p.find(x=>x.id==='SP001').base_price),99000);
+ const f=(await db.query("select payload from mc_runtime_knowledge where kind='PRODUCT' and source_key='PS_BUNDLE2'")).rows[0].payload;
+ assert.deepEqual(f.bundle_product_ids,['PS_FILM','PS_TV']);
+ const q=(await db.query("select answer from product_faq where external_id='PRIME_STORE_13'")).rows[0].answer;
+ assert.match(q,/Admin PRIME STORE/);assert.match(q,/Sekolapro/);
 });
