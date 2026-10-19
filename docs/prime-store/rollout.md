@@ -21,3 +21,5 @@ Validation: database behavior tests cover catalog scope, contact isolation, alia
 - Existing approved orders remain valid only for their exact contact/product/latest order; no approval command is inferred from WhatsApp chat.
 - Compact context preserves scoped memory and recent transcript, adds seven-product routing, school plans and complete topic-specific FAQ.
 - Activation is a separate final operational step: verify that WAHA session me.id is exactly 6285167465305, publish the existing n8n workflow with matching edits, clear stale automated jobs, then enable bot and ai_auto_reply. Keep followup disabled unless separately requested. Never enable another account or infer the number from a session label.
+
+Verified WAHA activation target: `session_01m51sr28e6ytwpjrgyk15aecr`, `me.id=6285167465305@c.us`, WORKING, inspected through the existing read-only n8n status node. Stopped session CS2 belongs to another account and must not be used. Inbound and outbound gates now require the exact selected session and account; missing identity is rejected.
