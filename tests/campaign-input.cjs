@@ -67,3 +67,25 @@ test("phone normalization accepts Excel name/phone values and local 8 prefix", (
   assert.equal(imported.duplicates, 1);
   assert.equal(imported.errors.length, 1);
 });
+
+test("Blash bulk permission is a single owner action with common evidence and opt-out safety",()=>{
+ const editor=fs.readFileSync("components/CampaignEditor.tsx","utf8");
+ const api=fs.readFileSync("app/api/campaigns/route.ts","utf8");
+ const migration=fs.readFileSync("database/042_blash_bulk_consent_reply_context.sql","utf8");
+ assert.match(editor,/Izin promosi massal/);
+ assert.match(editor,/bulk_consent:bulkConsent/);
+ assert.match(editor,/bulk_consent_evidence:/);
+ assert.match(api,/bulkEvidence\.length<12/);
+ assert.match(api,/bulk_consent:bulkConsent/);
+ assert.match(migration,/cc\.opted_out_at is null/);
+ assert.match(migration,/mc_contact_exclusions/);
+ assert.match(migration,/BULK_CONSENT_RECORDED/);
+});
+test("Blash reply context and campaign AI gate handle both phone and LID identity",()=>{
+ const migration=fs.readFileSync("database/042_blash_bulk_consent_reply_context.sql","utf8");
+ assert.match(migration,/mc_campaign_phone_for_chat\(v_chat\)/);
+ assert.match(migration,/mc_get_ai_context_before_cs_quality/);
+ assert.match(migration,/o\.sent_at > now\(\)-interval '14 days'/);
+ assert.doesNotMatch(migration,/where p_chat_id ~ '\^\[0-9\]\{6,20\}@lid\$'/);
+ assert.match(migration,/if v_bot=false then return null/);
+});
