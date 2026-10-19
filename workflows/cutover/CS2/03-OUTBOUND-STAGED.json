@@ -1,0 +1,781 @@
+{
+  "name": "MYCONTROL 03 - OUTBOUND V2 TEXT VIDEO CAMPAIGNS",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "V2: replaces old outbound worker, do not run both. Set WAHA_VIDEO_VERIFIED=true only after real video test. Campaigns require fresh heartbeat and test send. Unknown outcomes are never retried blindly.\nWEB CONTROLS: read canonical config, ACK version, then execute. Daily configuration lives in My Control. Secrets and graph wiring remain in n8n. No blind retries after transport uncertainty.",
+        "height": 340,
+        "width": 640
+      },
+      "id": "1a2415ac-7ac8-4a66-baf7-9b646494f315",
+      "name": "C - OUTBOUND WORKER",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1550,
+        1590
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "2efe8bda-ca5f-48b8-8831-778a61a18101",
+      "name": "Outbound Queue Poll - 5s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1500,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_claim_outbound_v2'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_worker:$env.N8N_WORKER_ID || 'n8n'}) }}"
+      },
+      "id": "0eababa3-0238-49bb-a04a-f728044768c6",
+      "name": "Claim Outbound Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -650,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9cded688-e6bc-435e-bfb8-108e97db3a31",
+              "leftValue": "={{$json.job_id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d182bf56-f3e2-4d4c-b6c8-cdb0fca0e7f0",
+      "name": "Outbound Job Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -390,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + (!$('Claim Outbound Job').first().json.media_url ? '/api/sendText' : /\\.(jpe?g|png|webp)(?:\\?.*)?$/i.test($('Claim Outbound Job').first().json.media_url) ? '/api/sendImage' : '/api/sendVideo')}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.WAHA_API_KEY}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ (() => { const job=$('Claim Outbound Job').first().json; const payload={session:$('Check WAHA Working').first().json.name,chatId:job.chat_id}; if(job.media_url){ const isImage=/\\.(jpe?g|png|webp)(?:\\?.*)?$/i.test(job.media_url); const ext=(job.media_url.match(/\\.(jpe?g|png|webp)(?:\\?.*)?$/i)||[])[1]?.toLowerCase()||'mp4'; const mime=isImage?(ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg'):'video/mp4'; const signed=job.media_url.startsWith('storage://')?$('Sign Private Video').first().json.signedURL:''; const url=job.media_url.startsWith('storage://')?(signed.startsWith('https://')?signed:$env.SUPABASE_URL + '/storage/v1' + signed):job.media_url; payload.caption=job.body||''; payload.file={url,mimetype:mime,filename:isImage?'poster.'+(ext==='jpeg'?'jpg':ext):'promo.mp4'}; }else{payload.text=job.body;} return JSON.stringify(payload); })() }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "226a7cdc-919e-40ac-8b50-e56b2c1be048",
+      "name": "WAHA Send Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        1980
+      ],
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_mark_outbound_sent'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_job_id:$('Claim Outbound Job').first().json.job_id,p_provider_message_id:$json.provider_message_id}) }}"
+      },
+      "id": "98dc2965-e0da-4825-9c27-63d4d96d54ed",
+      "name": "Mark Outbound SENT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        180,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job=$('Claim Outbound Job').first().json;const raw=$json??{};\nreturn [{json:{job_id:job.job_id,error_message:String(raw.error?.message??raw.message??'Unknown WAHA send result').slice(0,2000)}}];"
+      },
+      "id": "9f6dfde6-4903-4eca-ada7-d180404f4f9e",
+      "name": "WAHA Failed - Build Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        2110
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_unknown_outbound_job'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({p_job_id:$json.job_id,p_error:$json.error_message}) }}"
+      },
+      "id": "d3f1cf87-18c3-47bd-b46a-e7c49c50a594",
+      "name": "Mark Outbound UNKNOWN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        710,
+        2180
+      ]
+    },
+    {
+      "id": "542135d7-1ca7-4c70-85ba-69fb0bad65b3",
+      "name": "Validate WAHA Receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        1890
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "jsCode": "const raw=$json;const id=typeof raw.id==='string'?raw.id:(raw.id?._serialized??raw.key?.id??raw.message?.id);if(typeof id!=='string'||!id.trim())throw new Error('WAHA receipt missing message ID');return [{json:{provider_message_id:id}}];"
+      }
+    },
+    {
+      "id": "452a7082-e6c4-4a0a-aebb-4b89081c3641",
+      "name": "Campaign Worker Heartbeat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -700,
+        1750
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_campaign_heartbeat_v2'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n-v2',p_session:$('Check WAHA Working').first().json.name,p_video:$env.WAHA_VIDEO_VERIFIED==='true',p_image:true})}}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "12457212-2598-4d2b-b40e-8be6128c21e5",
+      "name": "Preflight Before Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -200,
+        1800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_campaign_preflight'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_job_id:$('Claim Outbound Job').first().json.job_id,p_attempt:$('Claim Outbound Job').first().json.attempt_count})}}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "6cbbccb9-1199-459b-aad0-740fb666db12",
+      "name": "Allow Send Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -50,
+        1800
+      ],
+      "parameters": {
+        "jsCode": "return $json.allowed===true?[{json:$('Claim Outbound Job').first().json}]:[];"
+      }
+    },
+    {
+      "id": "0a84b63c-bdd1-411c-b520-be88f10f39ee",
+      "name": "Check WAHA Working",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1100,
+        1700
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + '/api/sessions/CS2'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.WAHA_API_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "ff3ea06c-2cdd-482a-a989-ed8ebb7013c4",
+      "name": "WAHA Working Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        1700
+      ],
+      "parameters": {
+        "jsCode": "return $json.status==='WORKING'&&$json.name==='CS2'&&$json.me?.id==='6283186750567@c.us'?[{json:{working:true}}]:[];"
+      }
+    },
+    {
+      "id": "1c2b720e-c320-4103-a601-11a36af36905",
+      "name": "Private Media?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -20,
+        1700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4eb5ffde-dfb5-4bd7-9ef3-916733e36825",
+              "leftValue": "={{$('Claim Outbound Job').first().json.media_url || ''}}",
+              "rightValue": "storage://",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "81b8c3e4-1834-4fdb-b2cd-e0eb084867ab",
+      "name": "Sign Private Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        1650
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/storage/v1/object/sign/' + $('Claim Outbound Job').first().json.media_url.slice('storage://'.length)}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({expiresIn:300})}}"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_campaign_presend_fail'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_job_id:$('Claim Outbound Job').first().json.job_id,p_error:'Private video signing failed before transport send'})}}"
+      },
+      "id": "380bc87b-63e2-451b-9ced-2444bf6309b8",
+      "name": "Retry Media Preparation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        710,
+        2180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_read_web_controls'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({})}}"
+      },
+      "id": "bd8dc969-c572-4c2b-9391-10b5bcce0811",
+      "name": "Read Web Controls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1300,
+        2050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/rpc/mc_ack_web_controls'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify({p_worker:$env.N8N_WORKER_ID||'n8n',p_component:'OUTBOUND',p_version:$('Read Web Controls').first().json.version})}}"
+      },
+      "id": "2b1a9b5f-8470-466a-b662-5591dc8dfbd3",
+      "name": "Acknowledge Controls Version",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1100,
+        2050
+      ]
+    }
+  ],
+  "connections": {
+    "Outbound Queue Poll - 5s": {
+      "main": [
+        [
+          {
+            "node": "Read Web Controls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Outbound Job": {
+      "main": [
+        [
+          {
+            "node": "Outbound Job Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbound Job Found?": {
+      "main": [
+        [
+          {
+            "node": "Private Media?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "WAHA Send Text": {
+      "main": [
+        [
+          {
+            "node": "Validate WAHA Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA Failed - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Failed - Build Retry": {
+      "main": [
+        [
+          {
+            "node": "Mark Outbound UNKNOWN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate WAHA Receipt": {
+      "main": [
+        [
+          {
+            "node": "Mark Outbound SENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA Failed - Build Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Campaign Worker Heartbeat": {
+      "main": [
+        [
+          {
+            "node": "Claim Outbound Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preflight Before Send": {
+      "main": [
+        [
+          {
+            "node": "Allow Send Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allow Send Only": {
+      "main": [
+        [
+          {
+            "node": "WAHA Send Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check WAHA Working": {
+      "main": [
+        [
+          {
+            "node": "WAHA Working Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Working Only": {
+      "main": [
+        [
+          {
+            "node": "Campaign Worker Heartbeat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Private Media?": {
+      "main": [
+        [
+          {
+            "node": "Sign Private Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preflight Before Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign Private Video": {
+      "main": [
+        [
+          {
+            "node": "Preflight Before Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry Media Preparation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Web Controls": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Controls Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge Controls Version": {
+      "main": [
+        [
+          {
+            "node": "Check WAHA Working",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta",
+    "saveDataSuccessExecution": "none"
+  },
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "derivedFrom": "workflows/mycontrol.json",
+    "isolation": "outbound",
+    "activation": "Keep inactive until Supabase migrations, credentials, WAHA connectivity and end-to-end acceptance have passed.",
+    "version": "web-exclusions-v3",
+    "controlConfig": "006_web_controls; owner web controls, credentials remain n8n",
+    "cutover": {
+      "status": "STAGED_ONLY",
+      "target_session": "CS2",
+      "target_account": "6283186750567@c.us",
+      "target_lid": "208770441470075@lid",
+      "previous_session": "session_01m51sr28e6ytwpjrgyk15aecr",
+      "previous_account": "6285167465305@c.us",
+      "safety": "Do not import or activate before WORKING/me.id verified; patch existing live n8n nodes instead."
+    }
+  }
+}
