@@ -27,6 +27,7 @@ function Detail({
   const testReady = readiness?.test_status === "SENT";
   const eligibleCount = readiness?.eligible_total ?? 0;
   const alreadyBlasted = readiness?.already_blasted_total ?? 0;
+   const aiReplyReady = !c?.bot_enabled || readiness?.ai_auto_reply_ready === true;
   const testPending = ["PENDING","PROCESSING","RETRY"].includes(readiness?.test_status);
   useEffect(()=>{
     if(!testPending)return;
@@ -41,6 +42,7 @@ function Detail({
     try {
       if (action === "START" || action === "SCHEDULE") {
         if (!readiness?.worker_online) throw new Error("Pengirim belum terhubung. Buka Integrasi untuk memeriksa koneksi.");
+         if(!aiReplyReady)throw new Error("AI balasan belum aktif. Aktifkan Bot dan Auto Reply di Pengaturan My Control sebelum memulai Blash.");
         if (readiness?.has_image && !readiness?.image_supported) throw new Error("Pengirim gambar belum siap. Periksa koneksi di Integrasi.");
         if (!testReady) throw new Error("Kirim uji ke nomor WhatsApp milikmu terlebih dahulu, lalu tunggu status Diterima gateway. Status uji sekarang: " + (readiness?.test_status || "belum ada") + ".");
         if (eligibleCount < 1) throw new Error("Tidak ada nomor baru yang berizin untuk Blash ini. Nomor yang pernah di-Blash otomatis dilewati; nomor lain harus memiliki izin promosi yang tercatat.");
@@ -147,6 +149,7 @@ function Detail({
               <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima berizin dan belum pernah di-Blash</span>
               <span className={alreadyBlasted ? "blocked" : "ready"}>{alreadyBlasted} nomor sudah tercatat dalam Blash lain dan otomatis dilewati</span>
               <span className={testReady ? "ready" : "blocked"}>2. {testReady ? "Uji diterima gateway" : "Uji pengiriman belum berhasil"}</span>
+               <span className={aiReplyReady?"ready":"blocked"}>{c.bot_enabled?(aiReplyReady?"AI balasan otomatis sudah diaktifkan":"AI balasan belum aktif; nyalakan Bot dan Auto Reply terlebih dahulu"):"AI balasan untuk Blash ini dimatikan"}</span>
               <span className={readiness?.has_image && !readiness?.image_supported ? "blocked" : "ready"}>3. {readiness?.has_image ? (readiness?.image_supported ? "Pengirim gambar WAHA siap diuji" : "Pengirim gambar di n8n belum diperbarui") : readiness?.has_video ? "Video harus diuji" : "Pesan teks siap diuji"}</span>
             </div>
             {eligibleCount === 0 && <p className="muted">Tidak ada penerima baru yang berizin. Nomor yang pernah masuk Blash lain tidak akan dikirimi ulang; izin promosi tetap wajib untuk nomor baru.</p>}
@@ -196,7 +199,7 @@ function Detail({
             </label>}
             <button
               className="btn primary"
-              disabled={busy || !testReady || eligibleCount<1 || !readiness?.worker_online || (sendMode==="LATER"&&!schedule)}
+              disabled={busy || !testReady || eligibleCount<1 || !readiness?.worker_online || !aiReplyReady || (sendMode==="LATER"&&!schedule)}
               onClick={() => { setActionError(""); setNotice(""); setConfirm(sendMode==="LATER" ? "SCHEDULE" : "START"); }}
             >
               {sendMode==="LATER" ? "Simpan jadwal pengiriman" : "Kirim ke "+eligibleCount+" penerima"}
