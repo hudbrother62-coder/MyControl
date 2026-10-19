@@ -108,6 +108,7 @@ export type BotSettings = {
 };
 
 type State = {
+  inboxAccount: string | null;
   leads: Lead[];
   orders: Order[];
   payments: Payment[];
@@ -151,6 +152,7 @@ type Ctx = State & {
 };
 
 const defaults: State = {
+  inboxAccount: null,
   leads: [],
   orders: [],
   payments: [],
@@ -277,6 +279,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const queueError=inboxResponse&&!inboxResponse.ok?(inboxData?.error||'Antrean WhatsApp gagal dimuat'):'';
       const inbox=inboxResponse?.ok?inboxData:{leads:[],conversations:[],messages:[]};
       setS({
+        inboxAccount: inbox.account || null,
         products: (pr.data || []).map((r: any) => ({
           id: r.id,
           name: r.name,
@@ -375,7 +378,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(()=>{
     void refresh();
     const onFocus=()=>{if(!document.hidden)void refresh()};
-    const id=plan.length?setInterval(onFocus,path==='/inbox'?30000:60000):null;
+    const id=plan.length?setInterval(onFocus,path==='/inbox'?10000:60000):null;
     window.addEventListener('focus',onFocus);
     return()=>{generation.current++;if(id)clearInterval(id);window.removeEventListener('focus',onFocus)};
   },[path,page]);

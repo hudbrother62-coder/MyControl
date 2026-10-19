@@ -1,5 +1,5 @@
 import { authorize, apiError } from "@/lib/server/session";
-import { chatId, rpc, db } from "@/lib/server/database";
+import { activeChatId, rpc, db } from "@/lib/server/database";
 export async function POST(req: Request) {
   try {
     authorize(req, true);
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       });
       return Response.json({ ok: true, conversationId: phone + "@c.us" });
     }
-    const chat = await chatId(String(b.conversationId || ""));
+    const chat = await activeChatId(String(b.conversationId || ""));
     if (b.action === "contact_mode") {
       if (!["AI", "HYBRID", "MANUAL"].includes(b.mode))
         throw new Error("Mode tidak valid");

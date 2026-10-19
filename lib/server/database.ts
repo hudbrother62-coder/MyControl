@@ -44,3 +44,13 @@ export async function chatId(id: string) {
     );
   return chat;
 }
+
+export async function activeChatId(id: string) {
+  const chat = await chatId(id);
+  const account = await rpc("mc_active_account");
+  if (!account) throw new Error("Nomor bot belum dikonfigurasi");
+  const rows = await db("mc_lead_state?select=chat_id&chat_id=eq." + encodeURIComponent(chat) +
+    "&account_id=eq." + encodeURIComponent(account) + "&limit=1");
+  if (!rows[0]) throw new Error("Percakapan tidak tersedia untuk nomor bot aktif");
+  return chat;
+}

@@ -22,7 +22,7 @@
           "interval": [
             {
               "field": "seconds",
-              "secondsInterval": 5
+              "secondsInterval": 2
             }
           ]
         }
@@ -34,7 +34,8 @@
       "position": [
         -1500,
         850
-      ]
+      ],
+      "notes": "Poll every 2 seconds. Node name retained to preserve existing references and live node IDs."
     },
     {
       "parameters": {
@@ -824,7 +825,8 @@
       "position": [
         -1100,
         850
-      ]
+      ],
+      "alwaysOutputData": true
     },
     {
       "parameters": {

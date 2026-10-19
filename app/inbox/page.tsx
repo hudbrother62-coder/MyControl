@@ -40,18 +40,21 @@ export default function Inbox() {
   async function loadMessages(append=false){if(!active)return;const version=chatGeneration.current;setHistoryBusy(true);try{
     const first=append?msgs[0]:null;
     const url='/api/control/inbox?chat='+encodeURIComponent(active)+(first?'&before='+encodeURIComponent(first.createdAt)+'&beforeId='+encodeURIComponent(first.id):'');
-    const r=await fetch(url,{cache:'no-store'}),d=await r.json();if(!r.ok)throw new Error(d.error);if(version!==chatGeneration.current)return;
+    const r=await fetch(url,{cache:'no-store'}),d=await r.json();if(version!==chatGeneration.current)return;
+    if(!r.ok){if(r.status===404){setMsgs([]);setLinkedConversation(null);setOlder(false);}throw new Error(d.error);}
+    if(d.account&&s.inboxAccount&&d.account!==s.inboxAccount){setMsgs([]);setLinkedConversation(null);void s.refresh();return;}
     setMsgs(previous=>{const combined=append?[...d.messages,...previous]:[...previous,...d.messages];return Array.from(new Map(combined.map(m=>[m.id,m])).values()).sort((a:any,b:any)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id))});
     if(append||initialHistory.current){setOlder(d.hasMore);initialHistory.current=false;}setHistoryError('');
   }catch(e){if(version===chatGeneration.current)setHistoryError((e as Error).message)}finally{if(version===chatGeneration.current)setHistoryBusy(false)}}
-  useEffect(()=>{chatGeneration.current++;initialHistory.current=true;setMsgs([]);setOlder(false);void loadMessages();const id=setInterval(()=>{if(!document.hidden)void loadMessages()},15000);return()=>{chatGeneration.current++;clearInterval(id)}},[active]);
+  useEffect(()=>{chatGeneration.current++;initialHistory.current=true;setMsgs([]);setOlder(false);void loadMessages();const id=setInterval(()=>{if(!document.hidden)void loadMessages()},3000);return()=>{chatGeneration.current++;clearInterval(id)}},[active,s.inboxAccount]);
+  useEffect(()=>{setLinkedConversation(null);setText('');requestRef.current=null;initialChatApplied.current=false;},[s.inboxAccount]);
   useEffect(()=>{
     const selected=new URLSearchParams(window.location.search).get('chat');
     if(selected&&!initialChatApplied.current){
       initialChatApplied.current=true;setActive(selected);
       void fetch('/api/control/inbox?meta=1&chat='+encodeURIComponent(selected)).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setLinkedConversation(d.conversation)}).catch(e=>setHistoryError(e.message));
-    }else if(!selected&&(!active||!s.conversations.some(x=>x.id===active))&&s.conversations[0])setActive(s.conversations[0].id);
-  },[s.conversations,active]);
+    }else if(!selected&&(!active||!s.conversations.some(x=>x.id===active)))setActive(s.conversations[0]?.id||'');
+  },[s.conversations,active,s.inboxAccount]);
   function add(e: FormEvent) {
     e.preventDefault();
     if (!f.name || !f.phone) return;
@@ -215,6 +218,7 @@ export default function Inbox() {
                   >
                     <small>
                       {m.sender}
+                      {m.deliveryStatus ? ' · '+({DELIVERED:'Diterima WhatsApp',READ:'Dibaca',PLAYED:'Diputar'} as Record<string,string>)[m.deliveryStatus] : null}
                       {m.status ? " · " + ({PENDING:"Menunggu pengiriman ke WA",RETRY:"Menunggu percobaan ulang",PROCESSING:"Sedang dikirim ke WA",SENT:"Diterima WAHA",CANCELLED:"Tidak dikirim ke WA (dibatalkan)",FAILED:"Gagal dikirim ke WA",UNKNOWN:"Status pengiriman belum pasti"} as Record<string,string>)[m.status] || m.status : ""}
                     </small>
                     <div>{m.text}</div>
