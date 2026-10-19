@@ -85,3 +85,20 @@ test("Blash reply context and campaign AI gate handle both phone and LID identit
  assert.doesNotMatch(migration,/where p_chat_id ~ '\^\[0-9\]\{6,20\}@lid\$'/);
  assert.match(migration,/if v_bot=false then return null/);
 });
+
+test("contacts import needs batch evidence, not a permission toggle; LID-only contacts are not phone numbers",()=>{
+ const contacts=fs.readFileSync("app/contacts/page.tsx","utf8");
+ assert.doesNotMatch(contacts,/checked=\{consent\}|setConsent\(/);
+ assert.match(contacts,/Bukti persetujuan promo untuk seluruh daftar/);
+ assert.match(contacts,/consent:evidence.length>=12/);
+ assert.match(contacts,/Nomor WA belum terpetakan/);
+ assert.match(contacts,/c.phone && c.consent/);
+});
+test("explicit opt-in is strict, contact-initiated and preserves identity checks",()=>{
+ const migration=fs.readFileSync("database/045_capture_explicit_prime_store_promo_optin.sql","utf8");
+ assert.match(migration,/saya setuju menerima promosi dari prime store/);
+ assert.match(migration,/if new.from_me or new.is_group/);
+ assert.match(migration,/mc_campaign_phone_for_chat\(new.chat_id\)/);
+ assert.match(migration,/CUSTOMER_WHATSAPP_EXPLICIT_OPTIN/);
+ assert.match(migration,/v_msg not in\(/);
+});

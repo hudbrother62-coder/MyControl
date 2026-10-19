@@ -13,7 +13,6 @@ export default function Contacts() {
   );
   const [raw, setRaw] = useState(""),
     [source, setSource] = useState(""),
-    [consent, setConsent] = useState(false),
     [preview, setPreview] = useState<ReturnType<typeof parseContacts> | null>(
       null,
     ),
@@ -23,7 +22,7 @@ export default function Contacts() {
   const [managedContact, setManagedContact] = useState<any>(null);
   const contacts = data?.contacts || [];
   const eligible = useMemo(
-    () => contacts.filter((c: any) => c.consent && !c.opted_out_at && !c.exclusion).length,
+    () => contacts.filter((c: any) => c.phone && c.consent && !c.opted_out_at && !c.exclusion).length,
     [contacts],
   );
   function parse(text = raw) {
@@ -71,9 +70,16 @@ export default function Contacts() {
     if (!preview?.contacts.length || busy) return;
     setBusy(true);
     try {
+      // A batch-wide proof is used only if the owner actually supplies it.
+      // An empty evidence field imports contacts without manufacturing opt-in.
+      const evidence=source.trim();
+      if(evidence&&evidence.length<12)throw new Error("Bukti persetujuan minimal 12 karakter atau kosongkan jika belum ada izin.");
       const r = await campaignRequest({
         action: "import",
-        contacts: preview.contacts.map((c) => ({ ...c, source, consent })),
+        contacts: preview.contacts.map((c) => ({
+          ...c,source:evidence||"Impor kontak tanpa persetujuan promosi",
+          consent:evidence.length>=12
+        })),
       });
       setNotice(
         r.processed +
@@ -105,7 +111,7 @@ export default function Contacts() {
           <strong>{data?.total ?? contacts.length}</strong>
         </div>
         <div className="card">
-          <small>Memiliki izin promosi</small>
+          <small>Nomor dengan izin promosi tercatat</small>
           <strong>{eligible}</strong>
         </div>
         <div className="card">
@@ -179,28 +185,21 @@ export default function Contacts() {
                 ))}
               </div>
               <label className="fieldLabel">
-                Sumber kontak / bukti izin
+                Bukti persetujuan promo untuk seluruh daftar (opsional)
                 <input
                   className="input"
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
-                  placeholder="Contoh: formulir pelanggan, 16 Oktober 2026"
+                  placeholder="Contoh: formulir persetujuan PRIME STORE, tanggal..."
                 />
-              </label>
-              <label className="checkLine">
-                <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                />
-                Kontak pada import ini telah mengizinkan pesan promosi.
+                <small className="muted">Isi sekali jika seluruh kontak dalam file memang telah menyetujui promosi PRIME STORE. Jika kosong, kontak tetap tersimpan tetapi belum berizin promo.</small>
               </label>
               <button
                 className="btn primary"
                 disabled={
                   busy ||
                   !preview.contacts.length ||
-                  (consent && !source.trim())
+                  (source.trim().length>0 && source.trim().length<12)
                 }
                 onClick={() => void save()}
               >
@@ -254,14 +253,16 @@ export default function Contacts() {
                 <td>
                   <span
                     className={
-                      "badge " + (c.consent && !c.opted_out_at && !c.exclusion ? "ok" : "warn")
+                      "badge " + (c.phone && c.consent && !c.opted_out_at && !c.exclusion ? "ok" : "warn")
                     }
                   >
                     {c.exclusion ? "Dikecualikan" : c.opted_out_at
                       ? "Berhenti"
-                      : c.consent
-                        ? "Diizinkan"
-                        : "Belum ada izin"}
+                      : !c.phone
+                        ? "Nomor WA belum terpetakan"
+                        : c.consent
+                          ? "Berizin"
+                          : "Belum ada persetujuan"}
                   </span>
                 </td>
                 <td><span className={"badge " + (c.exclusion === "ALL_AUTOMATION" || contactAiPaused(c.pause_until) || c.automation_mode === "MANUAL" ? "warn" : "ok")}>{c.exclusion === "ALL_AUTOMATION" ? "Dikecualikan" : c.automation_mode === "MANUAL" ? "Admin Manual" : contactAiPaused(c.pause_until) ? "AI dijeda" : c.automation_mode === "HYBRID" ? "Hybrid" : "AI diizinkan"}</span></td>
