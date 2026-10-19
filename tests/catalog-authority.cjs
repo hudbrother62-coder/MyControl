@@ -3,6 +3,14 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
+test("campaign start and transport preflight reject disabled products", () => {
+ const ddl=fs.readFileSync("database/049_guard_inactive_product_campaigns.sql","utf8");
+ assert.ok(ddl.includes("p.status is distinct from 'ACTIVE'"));
+ assert.ok(ddl.includes("reason','PRODUCT_INACTIVE"));
+ assert.ok(ddl.includes("p_action in ('START','SCHEDULE','RESUME')"));
+ assert.ok(ddl.includes("status='CANCELLED'"));
+});
+
 test("bot instructions and AI context do not carry catalog backup or historical config", () => {
  const sql=fs.readFileSync("database/048_dynamic_policy_no_stale_bot_settings.sql","utf8");
  assert.ok(sql.includes("where k.active and (k.kind='PROMOTION'"));
