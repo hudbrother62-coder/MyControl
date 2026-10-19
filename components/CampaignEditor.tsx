@@ -273,7 +273,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       <label className="fieldLabel">Pilih file Excel atau CSV (.xlsx / .csv)
        <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
         onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
-      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Kolom label dan izin promosi opsional; tanpa bukti izin, nomor tidak boleh dikirim.</p>
+      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Izin promosi bisa dicatat satu kali untuk seluruh penerima pada pengaturan massal. Tanpa izin massal, kontak membutuhkan izin yang sudah tersimpan atau bukti per nomor.</p>
       {importNotice&&<div className="notice">{importNotice}</div>}
     </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
@@ -306,7 +306,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </div>
      {manualNotice&&<div className="notice" role="status">{manualNotice}</div>}
      {error&&<div className="notice errorNotice" role="alert">{error}</div>}
-     <p className="muted">Centang izin promosi jika pelanggan sudah setuju, lalu tulis sumber izinnya.</p>
+     <p className="muted">{bulkConsent?"Izin bersama akan berlaku untuk seluruh penerima yang memenuhi syarat setelah disimpan.":"Centang izin per kontak jika pelanggan sudah setuju, lalu tulis sumber izinnya."}</p>
     </div>}
     <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
