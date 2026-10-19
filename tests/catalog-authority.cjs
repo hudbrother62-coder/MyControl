@@ -1,3 +1,11 @@
+test("bot instructions and AI context do not carry catalog backup or historical config", () => {
+ const sql=fs.readFileSync("database/048_dynamic_policy_no_stale_bot_settings.sql","utf8");
+ assert.ok(sql.includes("where k.active and (k.kind='PROMOTION'"));
+ assert.ok(!sql.includes("k.kind='BOT_SETTING'"));
+ assert.ok(sql.includes("products.status=ACTIVE"));
+ assert.ok(!sql.includes("Kasir Kilat Rp"));
+});
+
 test("integration distinguishes n8n process status and CSNEW2 worker heartbeat", () => {
  const source=fs.readFileSync("lib/server/health.ts","utf8");
  const ui=fs.readFileSync("app/integrations/page.tsx","utf8");
