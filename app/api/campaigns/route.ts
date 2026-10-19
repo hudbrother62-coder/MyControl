@@ -104,11 +104,17 @@ export async function POST(req: Request) {
       if (imported.some((c: any) => !c.name || (c.consent && c.consent_evidence.trim().length < 12)))
         throw new Error("Kontak impor perlu nama dan bukti izin bila promosi diizinkan");
       const excluded = [...new Set((campaign.excluded_phones || []).map((v: unknown) => normalizePhone(String(v))))];
+      if(campaign.bulk_consent!==undefined&&typeof campaign.bulk_consent!=="boolean")
+        throw new Error("Pilihan izin promosi massal tidak valid");
+      const bulkConsent=campaign.bulk_consent===true;
+      const bulkEvidence=bulkConsent?String(campaign.bulk_consent_evidence||"").trim().slice(0,500):"";
+      if(bulkConsent&&bulkEvidence.length<12)
+        throw new Error("Sumber persetujuan promosi bersama wajib minimal 12 karakter");
       return Response.json(
         await rpc("mc_save_campaign", {
           p_campaign: {name:campaign.name,product_id:campaign.product_id,
             steps:campaign.steps,bot_enabled:campaign.bot_enabled,phones,
-            import_contacts:imported,excluded_phones:excluded},
+            import_contacts:imported,excluded_phones:excluded,bulk_consent:bulkConsent,bulk_consent_evidence:bulkEvidence},
         }),
       );
     }
