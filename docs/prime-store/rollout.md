@@ -11,3 +11,13 @@ Owner approved replacement of the Sekolapro-only bot with PRIME STORE on 19 Octo
 - Rollout keeps bot_enabled, ai_auto_reply and followup_enabled OFF and cancels stale automated decisions/followups. Reconnection and activation are separate owner actions.
 
 Validation: database behavior tests cover catalog scope, contact isolation, alias switches, amount ambiguity, manual access delivery, payment evidence vs verification, and a new pending order after an old approved one. Workflow tests cover all four model prompts and agent input propagation. No WhatsApp messages are sent by these tests.
+
+## Multi-product update — 19 October 2026
+
+- Migration 038 replaces all 67 FAQ sections using strictly increasing main headings, preserving nested installation steps.
+- The active catalog adds Sekolapro SP001 with monthly Rp99,000 and lifetime Rp299,000 checkout plans. Five APK products remain eligible for the two-distinct-app bundle; Sekolapro is excluded.
+- Payment forms and bank transfers are checked manually by Admin against identity, order and actual incoming payment. Form completion, screenshots, forwarded messages and conversational claims never approve payment. All product delivery and school-account activation remain manual.
+- The outbound database guard blocks automatic access URLs and AI attachments, even after payment. Only allowlisted public demo/site/checkout URLs can be generated. Manual Admin delivery remains available. This does not prevent a human Admin from sharing an incorrect link or prevent redistribution of public APK URLs.
+- Existing approved orders remain valid only for their exact contact/product/latest order; no approval command is inferred from WhatsApp chat.
+- Compact context preserves scoped memory and recent transcript, adds seven-product routing, school plans and complete topic-specific FAQ.
+- Activation is a separate final operational step: verify that WAHA session me.id is exactly 6285167465305, publish the existing n8n workflow with matching edits, clear stale automated jobs, then enable bot and ai_auto_reply. Keep followup disabled unless separately requested. Never enable another account or infer the number from a session label.
