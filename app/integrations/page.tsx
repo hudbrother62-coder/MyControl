@@ -51,12 +51,12 @@ export default function Integrations() {
       </div>
       {error && <div className="notice errorNotice">{error}</div>}
       <div className="grid2 section">
-        {["DATABASE", "N8N", "WAHA", "TELEGRAM"].map((name) => {
+        {["DATABASE", "N8N", "WORKER", "WAHA", "TELEGRAM"].map((name) => {
           const x = items[name];
           return (
             <div className="card" key={name}>
               <div className="integration">
-                <b>{name}</b>
+                <b>{name==="WORKER"?"N8N Worker Pengirim":name}</b>
                 <span className={"badge " + (x?.connected ? "ok" : "warn")}>
                   {x
                     ? x.connected

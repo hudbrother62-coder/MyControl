@@ -1,3 +1,12 @@
+test("integration distinguishes n8n process status and CSNEW2 worker heartbeat", () => {
+ const source=fs.readFileSync("lib/server/health.ts","utf8");
+ const ui=fs.readFileSync("app/integrations/page.tsx","utf8");
+ assert.ok(source.includes('name === "WORKER"'));
+ assert.ok(source.includes('mc_campaign_runtime?select='));
+ assert.ok(source.includes('Date.now()-new Date(r.last_seen).getTime()<90000'));
+ assert.ok(ui.includes('N8N Worker Pengirim'));
+});
+
 test("WAHA diagnosis handles missing session, proxy 404, auth, and identity", () => {
  const code=fs.readFileSync("lib/server/waha-probe.ts","utf8");
  for(const name of ["SESSION_NOT_FOUND","WAHA_API_ROUTE_NOT_FOUND","AUTH_REJECTED","IDENTITY_MISMATCH","CSNEW2","api/sessions?all=true"]){

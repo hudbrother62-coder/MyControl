@@ -9,7 +9,7 @@ async function check(url: string, headers: Record<string, string> = {}) {
   if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
 }
-export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
+export async function health(names = ["DATABASE", "WAHA", "N8N", "WORKER", "TELEGRAM"]) {
   const result: Record<string, any> = {};
   const config = await rpc("mc_read_web_controls").catch(() => null);
   const wahaUrl = config?.settings?.waha_base_url || process.env.WAHA_BASE_URL;
@@ -40,6 +40,14 @@ export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
           if (!n8nUrl) throw new Error("Belum dikonfigurasi");
           detail = await check(n8nUrl.trim().replace(/\/+$/, "") + "/healthz");
         }
+        if (name === "WORKER") {
+          const rows=await db("mc_campaign_runtime?select=session_name,last_seen,image_supported,video_supported&order=last_seen.desc&limit=15");
+          const fresh=(rows||[]).filter((r:any)=>r.session_name===targetSession&&Date.now()-new Date(r.last_seen).getTime()<90000);
+          detail={session:targetSession,status:fresh.length?"HEARTBEAT_OK":"STALE_OR_MISSING",
+            image_supported:fresh.some((r:any)=>r.image_supported===true),
+            video_supported:fresh.some((r:any)=>r.video_supported===true)};
+          if(!fresh.length)throw new Error("Worker pengirim "+targetSession+" belum memiliki heartbeat aktif (90 detik). Periksa Publish workflow dan node Campaign Worker Heartbeat");
+        }
         if (name === "TELEGRAM") {
           if (!process.env.TELEGRAM_BOT_TOKEN)
             throw new Error("Belum dikonfigurasi");
@@ -54,7 +62,7 @@ export async function health(names = ["DATABASE", "WAHA", "N8N", "TELEGRAM"]) {
           connected: true,
           checkedAt: new Date().toISOString(),
           detail:
-            name === "WAHA"
+            name === "WORKER" ? detail : name === "WAHA"
               ? {
                   session: targetSession,
                   status: detail.status,
