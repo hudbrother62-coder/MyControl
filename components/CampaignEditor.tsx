@@ -22,7 +22,7 @@ function csvRows(raw:string){
  if(row.length||value){row.push(value.replace(/\r$/,""));result.push(row)}
  return result;
 }
-function parseImportedRows(rows:string[][],bulkConsent=false){
+function parseImportedRows(rows:string[][]){
  const header=(rows.shift()||[]).map(x=>x.trim().toLowerCase().replace(/^\uFEFF/,"").replace(/\s+/g,"_"));
  const find=(names:string[])=>header.findIndex(x=>names.includes(x));
  const name=find(["nama","name"]),phone=find(["nomor","phone","whatsapp","no_wa","nomor_wa","no_whatsapp"]),
@@ -41,9 +41,9 @@ function parseImportedRows(rows:string[][],bulkConsent=false){
    seen.add(number);
    const optin=permission>=0&&["ya","yes","true","1","diizinkan","setuju"].includes((r[permission]||"").trim().toLowerCase());
    const proof=evidence>=0?(r[evidence]||"").trim():"";
-   if(optin&&!bulkConsent&&proof.length<12)throw new Error("Baris menyatakan izin promosi, tetapi bukti izin kurang dari 12 karakter");
+   if(optin&&proof.length<12)throw new Error("Baris menyatakan izin promosi, tetapi bukti izin kurang dari 12 karakter");
    contacts.push({phone:number,name:display,tags:tags>=0?(r[tags]||"").trim().slice(0,500):"",
-    consent:optin&&!bulkConsent,consent_evidence:optin&&!bulkConsent?proof.slice(0,500):""});
+    consent:optin,consent_evidence:optin?proof.slice(0,500):""});
   }catch(e){errors.push("Baris "+(index+2)+": "+(e as Error).message)}
  }
  if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
@@ -60,7 +60,6 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const [manualNotice,setManualNotice]=useState("");
  const [steps,setSteps]=useState<CampaignStep[]>([{type:"IMAGE",body:""}]);
  const [bot,setBot]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const [bulkConsent,setBulkConsent]=useState(false),[bulkEvidence,setBulkEvidence]=useState("");
  const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
  const feedback=useRef<HTMLDivElement>(null);
@@ -83,8 +82,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const pendingManual=manualRows.flatMap(row=>{try{if(!row.name.trim()||!row.phone.trim())return [];return [{phone:normalizePhone(row.phone),consent:row.consent&&row.consent_evidence.trim().length>=12}]}catch{return []}});
  const preparedPhones=Array.from(new Set([...selected,...pendingManual.map(row=>row.phone)]));
  const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...allImported.filter(c=>c.consent).map(c=>c.phone)].filter(phone=>!blockedKnown.has(phone)));
- const eligibleVisible=selected.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(bulkConsent||locallyApproved.has(phone))).length;
- const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(bulkConsent||locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone&&row.consent))).length;
+ const eligibleVisible=selected.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&locallyApproved.has(phone)).length;
+ const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone&&row.consent))).length;
  const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
  function toggle(phone:string){
@@ -122,8 +121,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    if(seen.has(phone))throw new Error("Kontak manual baris "+(index+1)+": nomor ganda dalam tabel");
    seen.add(phone);
    const proof=row.consent_evidence.trim();
-   if(row.consent&&!bulkConsent&&proof.length<12)throw new Error("Kontak manual baris "+(index+1)+": isi bukti izin promosi minimal 12 karakter, atau matikan pilihan izin");
-   contacts.push({phone,name,tags:row.tags.trim().slice(0,500),consent:row.consent&&!bulkConsent,consent_evidence:row.consent&&!bulkConsent?proof.slice(0,500):""});
+   if(row.consent&&proof.length<12)throw new Error("Kontak manual baris "+(index+1)+": isi bukti izin promosi minimal 12 karakter, atau matikan pilihan izin");
+   contacts.push({phone,name,tags:row.tags.trim().slice(0,500),consent:row.consent,consent_evidence:row.consent?proof.slice(0,500):""});
   }
   return contacts;
  }
@@ -163,7 +162,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     });
    }else if(/\.csv$/i.test(file.name))rows=csvRows(await file.text());
    else throw new Error("Pilih file .xlsx atau .csv");
-   const parsed=parseImportedRows(rows,bulkConsent);
+   const parsed=parseImportedRows(rows);
    setSelected(previous=>Array.from(new Set([
     ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
     ...parsed.contacts.map(contact=>contact.phone),
@@ -215,7 +214,6 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   setBusy(true);setError("");
   try{
    if(!product)throw new Error("Pilih produk di bagian 1 terlebih dahulu.");
-    if(bulkConsent&&bulkEvidence.trim().length<12)throw new Error("Cantumkan sumber persetujuan izin promosi seluruh penerima (minimal 12 karakter).");
    // Read unsaved manual rows as part of Save: users need not click a separate Add button.
    const pending=readManualRows();
    const selectedPhones=Array.from(new Set([...selected,...pending.map(c=>c.phone)]));
@@ -223,13 +221,12 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    if(selectedPhones.length>1000)throw new Error("Maksimal 1.000 penerima per Blash");
    const imports=new Map(allImported.map(c=>[c.phone,c]));
    for(const c of pending)imports.set(c.phone,c);
-   const included=Array.from(imports.values()).filter(c=>selectedPhones.includes(c.phone)).map(c=>bulkConsent?{...c,consent:false,consent_evidence:""}:c);
+   const included=Array.from(imports.values()).filter(c=>selectedPhones.includes(c.phone));
    if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
    const campaignName=name.trim()||("Promosi "+(products.find(p=>p.source_key===product)?.payload?.product_name||product)).slice(0,120);
    const r=await campaignRequest({action:"create",campaign:{name:campaignName,product_id:product,phones:selectedPhones,
-    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:bot,
-     bulk_consent:bulkConsent,bulk_consent_evidence:bulkConsent?bulkEvidence.trim():""}});
+    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:bot}});
    onDone(r.id);
   }catch(e){setError((e as Error).message);if((e as Error).message.includes("Kontak manual"))setRecipientSource("manual")}
   finally{setBusy(false)}
@@ -273,7 +270,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       <label className="fieldLabel">Pilih file Excel atau CSV (.xlsx / .csv)
        <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
         onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
-      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Izin promosi bisa dicatat satu kali untuk seluruh penerima pada pengaturan massal. Tanpa izin massal, kontak membutuhkan izin yang sudah tersimpan atau bukti per nomor.</p>
+      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Kontak berizin dipilih otomatis; kontak baru memerlukan bukti persetujuan pada data sumber.</p>
       {importNotice&&<div className="notice">{importNotice}</div>}
     </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
@@ -289,12 +286,6 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
         <input className="input" type="tel" inputMode="tel" value={row.phone} placeholder="08xxxxxxxxxx" onChange={e=>editManual(row.id,"phone",e.target.value)}/></label>
        <label className="fieldLabel campaignManualTags">Label
         <input className="input" value={row.tags} maxLength={500} placeholder="Prospek" onChange={e=>editManual(row.id,"tags",e.target.value)}/></label>
-       {!bulkConsent&&<label className="campaignManualConsent"><input type="checkbox" checked={row.consent}
-        onChange={e=>editManual(row.id,"consent",e.target.checked)}/> Izin promosi</label>}
-       {row.consent&&!bulkConsent&&<label className="fieldLabel campaignManualProof">Bukti izin
-        <input className="input" maxLength={500} value={row.consent_evidence}
-         placeholder="Contoh: persetujuan formulir pelanggan, tanggal..."
-         onChange={e=>editManual(row.id,"consent_evidence",e.target.value)}/></label>}
        <button className="btn campaignManualRemove" type="button" aria-label={"Hapus baris "+(index+1)}
         disabled={manualRows.length===1}
         onClick={()=>setManualRows(rows=>rows.filter(x=>x.id!==row.id))}>Hapus</button>
@@ -306,27 +297,14 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </div>
      {manualNotice&&<div className="notice" role="status">{manualNotice}</div>}
      {error&&<div className="notice errorNotice" role="alert">{error}</div>}
-     <p className="muted">{bulkConsent?"Izin bersama akan berlaku untuk seluruh penerima yang memenuhi syarat setelah disimpan.":"Centang izin per kontak jika pelanggan sudah setuju, lalu tulis sumber izinnya."}</p>
+
+      <p className="muted">Kontak berizin otomatis siap dikirimi. Kontak baru tetap dapat disimpan tanpa harus memilih menu izin.</p>
     </div>}
     <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
       placeholder="Cari nama, nomor, label..."/>
      <button className="btn" type="button" onClick={()=>void selectAll()} disabled={busy}>Pilih semua yang cocok</button>
      <button className="btn" type="button" onClick={()=>{setSelected([]);setExcluded([])}}>Hapus pilihan</button>
-    </div>
-    <div className="notice section" role="group" aria-label="Izin promosi untuk semua penerima">
-     <b>Izin promosi massal</b>
-     <p className="muted">Cukup satu pengaturan untuk seluruh nomor terpilih. Pilih Ya hanya jika seluruh penerima sudah memberikan persetujuan nyata.</p>
-     <div className="campaignSourceTabs" role="group" aria-label="Pilihan izin promosi massal">
-      <button type="button" className={"btn "+(bulkConsent?"primary":"")} aria-pressed={bulkConsent} onClick={()=>setBulkConsent(true)}>Ya, izinkan semua yang memenuhi syarat</button>
-      <button type="button" className={"btn "+(!bulkConsent?"primary":"")} aria-pressed={!bulkConsent} onClick={()=>setBulkConsent(false)}>Tidak, gunakan izin tersimpan</button>
-     </div>
-     {bulkConsent&&<label className="fieldLabel">Sumber izin bersama seluruh penerima
-      <textarea className="input" value={bulkEvidence} rows={2} maxLength={500} required
-       placeholder="Contoh: persetujuan melalui formulir pendaftaran tanggal 19 Oktober 2026"
-       onChange={e=>setBulkEvidence(e.target.value)}/>
-      <small className="muted">Bukti ini diterapkan ke seluruh kontak yang tidak menolak promosi. Nomor STOP dan pengecualian tetap diblokir.</small>
-     </label>}
     </div>
     <div className="campaignRecipientSummary">
      <span><b>{selected.length}</b> dipilih</span><span><b>{excluded.filter(x=>selected.includes(x)).length}</b> dikecualikan</span>
@@ -346,8 +324,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
         <span className="campaignRecipientName"><b>{c.name||phone||"Kontak WhatsApp"}</b>
          <small>{phone?"+"+phone:"ID WhatsApp belum berisi nomor"}{c.tags?" · "+c.tags:""}</small></span>
        </label>
-       <span className={"badge "+((permitted||(bulkConsent&&!opted&&!blocked))?"ok":"warn")}>
-        {!valid?"ID belum valid":blocked?"Blokir owner":opted?"Berhenti promosi":bulkConsent?"Izin massal saat disimpan":permitted?"Izin tercatat":"Belum ada izin"}
+       <span className={"badge "+(permitted?"ok":"warn")}>
+        {!valid?"ID belum valid":blocked?"Blokir owner":opted?"Berhenti promosi":permitted?"Siap promosi":"Belum ada izin"}
        </span>
        <label className="campaignRecipientExclude" title="Lewati nomor ini untuk Blash ini">
         <input type="checkbox" disabled={!valid} checked={omit} onChange={()=>{if(phone)toggleExclude(phone)}}/>
@@ -428,7 +406,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
      <div><small>Penerima disiapkan</small><b>{preparedPhones.length}</b></div>
-     <div><small>{bulkConsent?"Perkiraan izin setelah simpan":"Kontak berizin saat ini"}</small><b>{preparedEligible}</b></div>
+     <div><small>Kontak berizin otomatis</small><b>{preparedEligible}</b></div>
      <div><small>Format</small><b>{steps.some(x=>x.type==="IMAGE")?"Poster/gambar":steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
     </div>
     <p className="muted">Setelah disimpan, coba kirim ke nomor sendiri. Pelanggan belum menerima pesan sampai kamu memilih Kirim atau Jadwalkan.</p>

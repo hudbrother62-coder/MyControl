@@ -68,18 +68,14 @@ test("phone normalization accepts Excel name/phone values and local 8 prefix", (
   assert.equal(imported.errors.length, 1);
 });
 
-test("Blash bulk permission is a single owner action with common evidence and opt-out safety",()=>{
+test("Blash removes consent settings and derives recipient eligibility from recorded permission",()=>{
  const editor=fs.readFileSync("components/CampaignEditor.tsx","utf8");
- const api=fs.readFileSync("app/api/campaigns/route.ts","utf8");
- const migration=fs.readFileSync("database/042_blash_bulk_consent_reply_context.sql","utf8");
- assert.match(editor,/Izin promosi massal/);
- assert.match(editor,/bulk_consent:bulkConsent/);
- assert.match(editor,/bulk_consent_evidence:/);
- assert.match(api,/bulkEvidence\.length<12/);
- assert.match(api,/bulk_consent:bulkConsent/);
- assert.match(migration,/cc\.opted_out_at is null/);
- assert.match(migration,/mc_contact_exclusions/);
- assert.match(migration,/BULK_CONSENT_RECORDED/);
+ const sql=fs.readFileSync("database/042_blash_bulk_consent_reply_context.sql","utf8");
+ assert.doesNotMatch(editor,/bulkConsent|bulkEvidence|campaignManualConsent|Izin promosi massal/);
+ assert.match(editor,/locallyApproved.has\(phone\)/);
+ assert.match(editor,/Siap promosi/);
+ assert.match(sql,/cc.opted_out_at is null/);
+ assert.match(sql,/mc_contact_exclusions/);
 });
 test("Blash reply context and campaign AI gate handle both phone and LID identity",()=>{
  const migration=fs.readFileSync("database/042_blash_bulk_consent_reply_context.sql","utf8");
