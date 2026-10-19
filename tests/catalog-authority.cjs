@@ -1,3 +1,8 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+
 test("bot instructions and AI context do not carry catalog backup or historical config", () => {
  const sql=fs.readFileSync("database/048_dynamic_policy_no_stale_bot_settings.sql","utf8");
  assert.ok(sql.includes("where k.active and (k.kind='PROMOTION'"));
@@ -24,10 +29,6 @@ test("WAHA diagnosis handles missing session, proxy 404, auth, and identity", ()
  assert.ok(!code.includes('method:"PUT"'));
  assert.ok(!code.includes('method:"POST"'));
 });
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const vm = require("node:vm");
 
 test("migration defines web catalog authority, active products and usable FAQ", () => {
   const sql = fs.readFileSync("database/046_web_catalog_authority.sql", "utf8");
