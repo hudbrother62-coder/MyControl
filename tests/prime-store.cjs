@@ -24,9 +24,12 @@ test.after(async()=>db?.close());
 test('each PRIME STORE product carries its own approved features without access links or unrelated copy',async()=>{
  const expected={PS_KASIR:/transaksi penjualan/i,PS_TV:/channel lokal dan internasional/i,PS_FILM:/drama Korea/i,PS_SPORT:/hasil pertandingan/i,PS_DUNOKIDS:/waktu layar/i};
  for(const [id,feature] of Object.entries(expected)){
-  const row=(await db.query("select p.full_description,k.payload from products p join mc_runtime_knowledge k on k.source_key=p.id and k.kind='PRODUCT' where p.id=$1",[id])).rows[0];
-  assert.match(row.full_description,feature,id);assert.match(row.payload.full_description,feature,id);
-  assert.equal(row.payload.full_description,row.full_description);
+  const row=(await db.query("select full_description from products where id=$1",[id])).rows[0];
+  const official=(await ctx('__catalog_live_assertion@lid')).knowledge.find(k=>k.kind==='PRODUCT'&&k.source_key===id);
+  assert.ok(official,id+" must appear from web products even when runtime cache is stale");
+  assert.match(row.full_description,feature,id);
+  assert.match(official.payload.full_description,feature,id);
+  assert.equal(official.payload.full_description,row.full_description);
   assert.doesNotMatch(row.full_description,/https?:\/\/|Harga promo Oktober/);
  }
  const kasir=(await db.query("select full_description from products where id='PS_KASIR'")).rows[0].full_description;
