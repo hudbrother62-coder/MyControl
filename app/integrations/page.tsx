@@ -80,14 +80,14 @@ export default function Integrations() {
         })}
       </div>
       {cutover?.configured&&<div className="card section" role="status">
-        <div className="integration"><b>Pergantian nomor PRIME STORE → CS2</b>
+        <div className="integration"><b>Pengirim PRIME STORE</b>
           <span className={"badge "+(cutover.active?"ok":"warn")}>{cutover.active?"Dialihkan":"Belum dialihkan"}</span>
         </div>
-        <p>Target: <b>CS2</b> · +62 831-8675-0567</p>
+        <p>Target: <b>{cutover.target_session||"Belum ditetapkan"}</b> · +62 831-8675-0567</p>
         <p className="muted">Status WAHA: <b>{cutover.status||"Belum diperiksa"}</b>. {cutover.ready?
          "Identitas terverifikasi; lanjutkan pemeriksaan n8n dan uji WhatsApp sebelum pergantian.":"Pergantian belum dapat dijalankan."}</p>
         {cutover.error&&<small className="muted">{cutover.error}</small>}
-        <p className="muted">Ini hanya pemantauan. Saat CS2 menjadi WORKING, nomor tidak beralih otomatis sampai workflow aktif diperbarui dan diuji.</p>
+        <p className="muted">Ini hanya pemantauan. Saat sesi target menjadi WORKING, nomor tidak beralih otomatis sampai workflow aktif diperbarui dan diuji.</p>
       </div>}
       <div className="notice section">
         Koneksi endpoint belum membuktikan pesan diterima pelanggan. Workflow

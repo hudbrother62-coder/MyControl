@@ -167,13 +167,13 @@ test('product explanation context withholds price and checkout URLs until asked'
  assert.match(run('Sekolapro berapa harganya?'),/299000/);
 });
 
-test('new lead receives full PRIME STORE catalog and no prices in greeting context',()=>{
+test('new lead receives active PRIME STORE catalog and no prices in greeting context',()=>{
  const vm=require('node:vm'),js=fs.readFileSync('workflows/code/prime-store-input.js','utf8');
  const sample={history:[],knowledge:[{kind:'PRODUCT',source_key:'PS_KASIR',payload:{product_name:'Kasir Kilat',price:99000,full_description:'Harga normal Rp99.000.\nKasir mencatat transaksi.'}}]};
  const run=message=>JSON.parse(vm.runInNewContext('(function(){'+js+'})()',{$json:sample,$:()=>({first:()=>({json:{chat_id:'new@lid',message_text:message}})})})[0].json.agent_input.split('SOURCED CONTEXT:\n')[1].split('\nJika pertama kali')[0]);
  const greeting=run('hai kak');
  assert.equal(greeting.response_policy.first_greeting,true);
- assert.equal(greeting.storefront_catalog.length,7);
+ assert.equal(greeting.storefront_catalog.length,1);
  assert.equal(greeting.official_products.length,0);
  assert.doesNotMatch(JSON.stringify(greeting),/99000/);
  const explain=run('Kasir Kilat untuk apa?');

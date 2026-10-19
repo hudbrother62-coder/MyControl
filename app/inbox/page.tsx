@@ -10,6 +10,21 @@ export default function Inbox() {
   const [f, setF] = useState({ name: "", phone: "", product: "" });
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [wahaStatus,setWahaStatus] = useState<{target_session?:string;target_me_id?:string;status?:string;ready?:boolean;active?:boolean;identity_verified?:boolean}|null>(null);
+  useEffect(()=>{
+    let mounted=true;
+    async function check(){
+      try{
+        const response=await fetch("/api/control/waha-cutover",{cache:"no-store"});
+        if(!response.ok)return;
+        const result=await response.json();
+        if(mounted)setWahaStatus(result);
+      }catch{if(mounted)setWahaStatus(null)}
+    }
+    void check();
+    const timer=setInterval(()=>void check(),30000);
+    return()=>{mounted=false;clearInterval(timer)};
+  },[]);
   const requestRef = useRef<{ key: string; id: string } | null>(null);
   const initialChatApplied = useRef(false);
   const [linkedConversation,setLinkedConversation]=useState<any>(null);
@@ -91,6 +106,12 @@ export default function Inbox() {
         Balasan manual masuk antrean pengiriman. Status SENT berarti gateway
         menerima pesan; penerimaan pelanggan memerlukan bukti delivery.
       </div>
+      {wahaStatus&&<div className="notice" role="status">
+        WhatsApp pengirim: <b>{wahaStatus.target_session||"Belum ditetapkan"}</b>
+        {wahaStatus.target_me_id?" · "+wahaStatus.target_me_id.split("@")[0]:""}
+        {" · "}{wahaStatus.status||"NOT_CHECKED"}
+        {" · "}{wahaStatus.active&&wahaStatus.ready&&wahaStatus.identity_verified?"Identitas siap (delivery belum diuji)":"Routing belum terverifikasi"}
+      </div>}
       {show && (
         <form className="card formGrid section" onSubmit={add}>
           <input

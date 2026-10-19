@@ -27,9 +27,9 @@ test("CS2 outbound accepts only WORKING with exact account",()=>{
  assert.equal(run("WORKING","CS2","6283186750567@c.us").length,1);
  assert.match(node(all,"03 | Check WAHA Working").parameters.url,/sessions\/CS2/);
 });
-test("original production definitions remain unchanged, staged references connect",()=>{
+test("current production references use CSNEW2 while archived staged references connect",()=>{
  const production=read("workflows/release/Kendaliku_MyControl_v3_All_In_One.json");
- assert.match(node(production,"03 | Check WAHA Working").parameters.url,/session_01m51sr28e6ytwpjrgyk15aecr/);
+ assert.match(node(production,"03 | Check WAHA Working").parameters.url,/sessions\/CSNEW2/);
  for(const w of [all,ingress,outbound]){
   const names=new Set(w.nodes.map(n=>n.name));
   for(const con of Object.values(w.connections))for(const stream of Object.values(con))
