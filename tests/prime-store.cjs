@@ -16,6 +16,7 @@ test.before(async()=>{
  if(fs.existsSync('database/036_prime_store_memory.sql')) await db.exec(fs.readFileSync('database/036_prime_store_memory.sql','utf8'));
  if(fs.existsSync('database/037_prime_store_catalog_copy.sql')) await db.exec(fs.readFileSync('database/037_prime_store_catalog_copy.sql','utf8'));
  if(fs.existsSync('database/038_multi_product_payment_safety.sql')) await db.exec(fs.readFileSync('database/038_multi_product_payment_safety.sql','utf8'));
+ await db.exec(fs.readFileSync('database/039_reply_delivery_policy.sql','utf8'));
 });
 test.after(async()=>db?.close());
 test('each PRIME STORE product carries its own approved features without access links or unrelated copy',async()=>{
@@ -67,7 +68,7 @@ test('all automatic paths reject product access, unapproved URLs, and attachment
   const key=crypto.randomUUID();await db.query('insert into mc_outbound_jobs(chat_id,body,kind,idempotency_key)values($1,$2,$3,$4)',['unpaid@lid',body,'AI_REPLY',key]);
   assert.equal((await db.query('select status from mc_outbound_jobs where idempotency_key=$1',[key])).rows[0].status,'CANCELLED',body);
  }
- for(const body of ['Bukti pembayarannya sudah kami terima untuk diperiksa.','Silakan kirim bukti transfer untuk diperiksa Admin.','https://profit-meledak.store/sekolapro-1bulan']){
+ for(const body of ['Bukti pembayarannya sudah kami terima untuk diperiksa.','Silakan kirim bukti transfer untuk diperiksa Admin.','https://sekolapro.com']){
   const key=crypto.randomUUID();await db.query('insert into mc_outbound_jobs(chat_id,body,kind,idempotency_key)values($1,$2,$3,$4)',['unpaid@lid',body,'AI_REPLY',key]);
   assert.equal((await db.query('select status from mc_outbound_jobs where idempotency_key=$1',[key])).rows[0].status,'PENDING',body);
  }
@@ -144,4 +145,23 @@ test('compact agent context includes school plans and rejects mismatched contact
  assert.throws(()=>run({memory:{chat_id:'other@lid'}}),/CONTACT_MEMORY_SCOPE_MISMATCH/);
  const row=run({lead_state:{CS_PRODUCT_FOCUS:{product_id:'SP001'}},knowledge:[{kind:'PRODUCT',source_key:'SP001',payload:{product_name:'Sekolapro',plans:[{price:99000},{price:299000}]}}]});
  assert.match(row.agent_input,/299000/);assert.match(row.agent_input,/SP001/);assert.match(row.agent_input,/MANUAL/);
+});
+
+test('future verification explanations are deliverable, separate false success claims stay blocked',async()=>{
+ for(const [body,status] of [
+ ['DunoKids membantu mengatur waktu layar. Setelah pembayaran terverifikasi, Admin mengirim akses secara manual.','PENDING'],
+ ['Link dikirim setelah pembayaran berhasil terverifikasi.','PENDING'],
+ ['Jika pembayaran terverifikasi, Admin memproses pesanan. Pembayaran sudah diterima.','CANCELLED'],
+ ['Setelah pembayaran terverifikasi. Transfernya sudah masuk.','CANCELLED'],
+ ['https://profit-meledak.store/sekolapro-1bulan','CANCELLED'],
+ ['https://profit-meledak.store/sekolapro-selamanya','CANCELLED']]){
+ const key=crypto.randomUUID();await db.query('insert into mc_outbound_jobs(chat_id,body,kind,idempotency_key)values($1,$2,$3,$4)',['unpaid@lid',body,'AI_REPLY',key]);
+ assert.equal((await db.query('select status from mc_outbound_jobs where idempotency_key=$1',[key])).rows[0].status,status,body);
+ }
+});
+test('product explanation context withholds price and checkout URLs until asked',()=>{
+ const vm=require('node:vm'),code=fs.readFileSync('workflows/code/prime-store-input.js','utf8');
+ const run=message=>vm.runInNewContext('(function(){'+code+'})()',{$json:{knowledge:[{kind:'PRODUCT',source_key:'SP001',payload:{product_name:'Sekolapro',price:299000,plans:[{price:99000,checkout_url:'https://profit-meledak.store/sekolapro-1bulan'}]}}]},$:()=>({first:()=>({json:{chat_id:'school@lid',message_text:message}})})})[0].json.agent_input;
+ const explain=run('Sekolapro itu apa?');assert.doesNotMatch(explain,/299000|99000|profit-meledak/);assert.match(explain,/sekolapro.com/);
+ assert.match(run('Sekolapro berapa harganya?'),/299000/);
 });

@@ -194,7 +194,7 @@ export default function Inbox() {
                   >
                     <small>
                       {m.sender}
-                      {m.status ? " · " + m.status : ""}
+                      {m.status ? " · " + ({PENDING:"Menunggu pengiriman ke WA",RETRY:"Menunggu percobaan ulang",PROCESSING:"Sedang dikirim ke WA",SENT:"Diterima WAHA",CANCELLED:"Tidak dikirim ke WA (dibatalkan)",FAILED:"Gagal dikirim ke WA",UNKNOWN:"Status pengiriman belum pasti"} as Record<string,string>)[m.status] || m.status : ""}
                     </small>
                     <div>{m.text}</div>
                   </div>

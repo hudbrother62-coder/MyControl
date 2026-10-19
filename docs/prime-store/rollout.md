@@ -23,3 +23,8 @@ Validation: database behavior tests cover catalog scope, contact isolation, alia
 - Activation is a separate final operational step: verify that WAHA session me.id is exactly 6285167465305, publish the existing n8n workflow with matching edits, clear stale automated jobs, then enable bot and ai_auto_reply. Keep followup disabled unless separately requested. Never enable another account or infer the number from a session label.
 
 Verified WAHA activation target: `session_01m51sr28e6ytwpjrgyk15aecr`, `me.id=6285167465305@c.us`, WORKING, inspected through the existing read-only n8n status node. Stopped session CS2 belongs to another account and must not be used. Inbound and outbound gates now require the exact selected session and account; missing identity is rejected.
+
+
+## Perbaikan 19 Oktober: balasan tampil di web tetapi dibatalkan
+
+Produksi menunjukkan balasan DunoKids CANCELLED dengan PRIME_STORE_PAYMENT_NOT_VERIFIED. Penyebabnya frasa bersyarat "setelah pembayaran terverifikasi" cocok dengan regex klaim lunas. Migrasi 039 mengecualikan hanya frasa bersyarat; klaim sukses terpisah tetap diblokir. Link checkout Sekolapro dikeluarkan dari allowlist. Owner policy dan empat agen kini menjelaskan manfaat dahulu, harga hanya ketika diminta, Sekolapro hanya https://sekolapro.com. Konteks tidak memuat harga/paket checkout untuk pertanyaan penjelasan. Prompt meminta menjawab langsung dari konteks agar tidak membaca ulang seluruh katalog melalui tool. Inbox menjelaskan status belum terkirim/dibatalkan; SENT berarti diterima WAHA, bukan jaminan dibaca pelanggan.
