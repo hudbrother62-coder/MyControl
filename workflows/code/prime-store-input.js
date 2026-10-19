@@ -36,7 +36,7 @@ const publicCatalog=[
  {name:'Bundling HiTV + Guide TV',purpose:'dua aplikasi tersebut dalam satu paket'},
  {name:'Sekolapro',purpose:'pengelolaan sekolah berbasis web'}
 ];
-const hidePrice=value=>String(value??'').replace(/Paket bulanan Rp[0-9.,]+;?\\s*sekali beli Rp[0-9.,]+\\.?/gi,'').split('\\n').filter(s=>!/\\b(harga|promo|diskon)\\b|Rp\\s*[0-9]/i.test(s)).join('\\n').trim().replace(/Rp\\s*[0-9.,]+/gi,'');
+const hidePrice=value=>String(value??'').replace(/Paket bulanan Rp[0-9.,]+;?\s*sekali beli Rp[0-9.,]+\.?/gi,'').split('\n').filter(s=>!/\b(harga|promo|diskon)\b|Rp\s*[0-9]/i.test(s)).join('\n').trim().replace(/Rp\s*[0-9.,]+/gi,'');
 const products=selected.slice(0,wantsAllPrices?7:3).map(k=>{const p=k.payload??{},s=p.sales_guide??{};
  return {source_key:k.source_key,name:cut(p.product_name,120),
  ...(wantsAllPrices?{}:{description:cut(priceRequested?(p.full_description||p.description):hidePrice(p.full_description||p.description),1300),
