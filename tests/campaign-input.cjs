@@ -56,3 +56,14 @@ test("poster accepts private JPG and empty caption but rejects Drive share URL",
  assert.throws(()=>c.validateSteps([{type:"IMAGE",body:"Poster",media_url:"http://127.0.0.1/internal.jpg"}]),/HTTPS/);
  assert.throws(()=>c.validateSteps([{type:"IMAGE",body:"Poster",media_url:"storage://mycontrol-campaigns/promo.mp4"}]));
 });
+
+test("phone normalization accepts Excel name/phone values and local 8 prefix", () => {
+  const c = load();
+  assert.equal(c.normalizePhone("6282172256434"), "6282172256434");
+  assert.equal(c.normalizePhone("82172256434"), "6282172256434");
+  assert.equal(c.normalizePhone(" 0812 3456 7890 "), "6281234567890");
+  const imported = c.parseContacts("name,phone\nSri,6282172256434\nSri Duplicate,082172256434\nBlank,");
+  assert.equal(imported.contacts.length, 1);
+  assert.equal(imported.duplicates, 1);
+  assert.equal(imported.errors.length, 1);
+});

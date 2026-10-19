@@ -26,6 +26,7 @@ function Detail({
   const readiness = data?.readiness;
   const testReady = readiness?.test_status === "SENT";
   const eligibleCount = readiness?.eligible_total ?? 0;
+  const alreadyBlasted = readiness?.already_blasted_total ?? 0;
   const testPending = ["PENDING","PROCESSING","RETRY"].includes(readiness?.test_status);
   useEffect(()=>{
     if(!testPending)return;
@@ -42,7 +43,7 @@ function Detail({
         if (!readiness?.worker_online) throw new Error("Pengirim belum terhubung. Buka Integrasi untuk memeriksa koneksi.");
         if (readiness?.has_image && !readiness?.image_supported) throw new Error("Pengirim gambar belum siap. Periksa koneksi di Integrasi.");
         if (!testReady) throw new Error("Kirim uji ke nomor WhatsApp milikmu terlebih dahulu, lalu tunggu status Diterima gateway. Status uji sekarang: " + (readiness?.test_status || "belum ada") + ".");
-        if (eligibleCount < 1) throw new Error("Tidak ada penerima yang memiliki izin promosi. Buka Menu Kontak, catat izin yang benar-benar diberikan pelanggan, atau buat Blash baru dengan kontak manual berizin.");
+        if (eligibleCount < 1) throw new Error("Tidak ada nomor baru yang berizin untuk Blash ini. Nomor yang pernah di-Blash otomatis dilewati; nomor lain harus memiliki izin promosi yang tercatat.");
       }
       if (action === "SCHEDULE") {
         if (!schedule) throw new Error("Pilih tanggal dan jam WIB dahulu.");
@@ -143,11 +144,12 @@ function Detail({
           <details className="campaignReadiness section">
             <summary>Periksa kesiapan pengiriman</summary>
             <div className="campaignReadinessGrid">
-              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima memenuhi syarat izin</span>
+              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima berizin dan belum pernah di-Blash</span>
+              <span className={alreadyBlasted ? "blocked" : "ready"}>{alreadyBlasted} nomor sudah tercatat dalam Blash lain dan otomatis dilewati</span>
               <span className={testReady ? "ready" : "blocked"}>2. {testReady ? "Uji diterima gateway" : "Uji pengiriman belum berhasil"}</span>
               <span className={readiness?.has_image && !readiness?.image_supported ? "blocked" : "ready"}>3. {readiness?.has_image ? (readiness?.image_supported ? "Pengirim gambar WAHA siap diuji" : "Pengirim gambar di n8n belum diperbarui") : readiness?.has_video ? "Video harus diuji" : "Pesan teks siap diuji"}</span>
             </div>
-            {eligibleCount === 0 && <p className="muted">Semua penerima belum berizin atau dikecualikan. Draft boleh disimpan, tetapi Blash tidak dapat mengirim sebelum izin promosi pelanggan tercatat.</p>}
+            {eligibleCount === 0 && <p className="muted">Tidak ada penerima baru yang berizin. Nomor yang pernah masuk Blash lain tidak akan dikirimi ulang; izin promosi tetap wajib untuk nomor baru.</p>}
             {readiness?.has_image && !readiness?.image_supported && <p className="muted">Sambungan pengirim gambar belum siap. <Link href="/integrations">Periksa koneksi →</Link></p>}
             <button type="button" className="btn" onClick={()=>void refresh()} disabled={busy}>Perbarui status</button>
           </details>
@@ -208,7 +210,7 @@ function Detail({
             {confirm === "CANCEL"
               ? "Batalkan sisa pengiriman?"
               : confirm === "SCHEDULE" ? "Jadwalkan Blash untuk " + new Date(schedule + ":00+07:00").toLocaleString("id-ID", {timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"}) + " WIB?"
-              : "Mulai Blash untuk " + (readiness?.recipient_total ?? data.recipients.length) + " penerima?"}
+              : "Mulai Blash untuk " + eligibleCount + " nomor baru yang berizin?"}
           </b>
           <p>Server akan memeriksa izin promosi, hasil uji, dan kesiapan worker. Pesan yang sudah dikirim tidak dapat ditarik kembali.</p>
           {actionError && <div className="notice errorNotice campaignInlineError" role="alert"><strong>Tidak dapat melanjutkan:</strong> {actionError}</div>}

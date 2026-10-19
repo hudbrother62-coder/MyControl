@@ -153,15 +153,23 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     const wb=new Workbook();await wb.xlsx.load(await file.arrayBuffer());
     const ws=wb.worksheets[0];if(!ws)throw new Error("Tidak ada sheet dalam file");
     rows=[];ws.eachRow(row=>{
-     const line:string[]=[];for(let i=1;i<=Math.min(row.cellCount,12);i++)line.push(String(row.getCell(i).text||""));
+     const line:string[]=[];for(let i=1;i<=Math.min(row.cellCount,12);i++){
+      const cell=row.getCell(i);
+      const value=cell.value;
+      line.push(typeof value==="number"&&Number.isSafeInteger(value)?String(value):String(cell.text||""));
+     }
      rows.push(line);
     });
    }else if(/\.csv$/i.test(file.name))rows=csvRows(await file.text());
    else throw new Error("Pilih file .xlsx atau .csv");
    const parsed=parseImportedRows(rows);
+   setSelected(previous=>Array.from(new Set([
+    ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
+    ...parsed.contacts.map(contact=>contact.phone),
+   ])).slice(0,1000));
    setImported(parsed.contacts);
    setRecipientSource("excel");
-   setImportNotice(parsed.contacts.length+" kontak siap dipilih · "+parsed.duplicates+" nomor ganda · "+parsed.errors.length+" baris bermasalah.");
+   setImportNotice(parsed.contacts.length+" nomor unik otomatis dipilih · "+parsed.duplicates+" duplikat dilewati · "+parsed.errors.length+" nomor/baris tidak valid. Izin promosi tetap wajib diverifikasi sebelum mengirim.");
    if(parsed.errors.length)setError(parsed.errors.slice(0,5).join("; "));
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}
  }
@@ -262,7 +270,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       <label className="fieldLabel">Pilih file Excel atau CSV (.xlsx / .csv)
        <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
         onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
-      <p className="muted">Kolom: nama, nomor, label, izin_promosi, bukti_izin. Izin tanpa bukti tidak dianggap valid.</p>
+      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Kolom label dan izin promosi opsional; tanpa bukti izin, nomor tidak boleh dikirim.</p>
       {importNotice&&<div className="notice">{importNotice}</div>}
     </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">

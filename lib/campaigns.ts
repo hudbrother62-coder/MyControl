@@ -13,7 +13,8 @@ export type CampaignStep = {
 export function normalizePhone(value: string) {
   let phone = String(value)
     .trim()
-    .replace(/[ +().-]/g, "");
+    .replace(/[\s+().-]/g, "");
+  if (/^8\d{8,12}$/.test(phone)) phone = "62" + phone;
   if (phone.startsWith("0")) phone = "62" + phone.slice(1);
   if (!/^[1-9][0-9]{7,14}$/.test(phone)) throw new Error("Nomor tidak valid");
   return phone;
