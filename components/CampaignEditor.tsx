@@ -39,11 +39,14 @@ function parseImportedRows(rows:string[][]){
    if(!display||display.length>100)throw new Error("Nama harus 1–100 karakter");
    if(seen.has(number)){duplicates++;continue}
    seen.add(number);
-   const optin=permission>=0&&["ya","yes","true","1","diizinkan","setuju"].includes((r[permission]||"").trim().toLowerCase());
+   const rawPermission=permission>=0?(r[permission]||"").trim().toLowerCase():"";
+   const optin=["ya","yes","true","1","diizinkan","setuju"].includes(rawPermission);
+   const optout=["tidak","no","false","0","stop","ditolak"].includes(rawPermission);
    const proof=evidence>=0?(r[evidence]||"").trim():"";
    if(optin&&proof.length<12)throw new Error("Baris menyatakan izin promosi, tetapi bukti izin kurang dari 12 karakter");
+   const approved=!optout&&(optin||(!rawPermission&&proof.length>=12));
    contacts.push({phone:number,name:display,tags:tags>=0?(r[tags]||"").trim().slice(0,500):"",
-    consent:optin,consent_evidence:optin?proof.slice(0,500):""});
+    consent:approved,consent_evidence:approved?proof.slice(0,500):""});
   }catch(e){errors.push("Baris "+(index+2)+": "+(e as Error).message)}
  }
  if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
@@ -175,9 +178,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  }
  async function template(){
   const {Workbook}=await import("exceljs");const wb=new Workbook();const sheet=wb.addWorksheet("Calon Penerima");
-  sheet.addRow(["nama","nomor","label","izin_promosi","bukti_izin"]);
-  sheet.addRow(["Contoh Pelanggan","081234567890","prospek","tidak",""]);
-  sheet.columns=[{width:24},{width:22},{width:22},{width:19},{width:56}];
+  sheet.addRow(["nama","nomor","label","bukti_izin"]);
+  sheet.addRow(["Contoh Pelanggan","081234567890","prospek",""]);
+  sheet.columns=[{width:24},{width:22},{width:22},{width:56}];
   sheet.getRow(1).font={bold:true};
   const buf=await wb.xlsx.writeBuffer();
   const blob=new Blob([new Uint8Array(buf)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
