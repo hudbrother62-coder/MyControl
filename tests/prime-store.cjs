@@ -18,6 +18,7 @@ test.before(async()=>{
  if(fs.existsSync('database/038_multi_product_payment_safety.sql')) await db.exec(fs.readFileSync('database/038_multi_product_payment_safety.sql','utf8'));
  await db.exec(fs.readFileSync('database/039_reply_delivery_policy.sql','utf8'));
  await db.exec(fs.readFileSync('database/041_prime_store_correct_prices_and_welcome.sql','utf8'));
+ await db.exec(fs.readFileSync('database/047_live_catalog_no_duplicate_faq.sql','utf8'));
 });
 test.after(async()=>db?.close());
 test('each PRIME STORE product carries its own approved features without access links or unrelated copy',async()=>{

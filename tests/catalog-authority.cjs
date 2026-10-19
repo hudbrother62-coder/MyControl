@@ -29,6 +29,15 @@ test("welcome catalog is dynamic and hides inactive products and prices", () => 
   assert.equal(run([active, inactive], "berapa harga produk aktif?").official_products.length, 1);
 });
 
+test("latest SQL reads active products and canonical FAQ without duplicate cache paths", () => {
+  const sql = fs.readFileSync("database/047_live_catalog_no_duplicate_faq.sql", "utf8");
+  assert.match(sql, /select 'PRODUCT'::text kind,c.source_key,c.payload from catalog c/);
+  assert.match(sql, /from public.product_faq f/);
+  assert.match(sql, /f.active and f.ai_can_use/);
+  assert.match(sql, /cetak struk/);
+  assert.doesNotMatch(sql, /delete from public.mc_contact_memories/i);
+});
+
 test("workflow definitions use CSNEW2 and safe GET check", () => {
   for (const file of ["workflows/production/01-waha-inbound.json", "workflows/production/02-ai-worker.json", "workflows/production/03-outbound.json", "workflows/release/Kendaliku_MyControl_v3_All_In_One.json"]) {
     const workflow = JSON.parse(fs.readFileSync(file, "utf8"));

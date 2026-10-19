@@ -81,7 +81,7 @@ test('CS only accepts and sends through the owner-selected WAHA account',()=>{
  const run=(session,id)=>vm.runInNewContext('(function(){'+code+'})()',{$json:{session,me:{id},event:'message',payload:{id:'msg',from:'628111@c.us',body:'halo'}}})[0].json;
  assert.equal(run('session_01m51sr28e6ytwpjrgyk15aecr','6285167465305@c.us').valid,false);
  assert.equal(run(expected,'6283186750567@c.us').valid,true);
- assert.equal(run(expected,'6283186750567@c.us').valid,false);
+ assert.equal(run(expected,'6285167465305@c.us').valid,false);
  assert.equal(run(undefined,undefined).valid,false);
  const gate=nodes.get('03 | WAHA Working Only').parameters.jsCode;
  const check=(name,id)=>vm.runInNewContext('(function(){'+gate+'})()',{$json:{status:'WORKING',name,me:{id}}});

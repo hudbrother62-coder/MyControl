@@ -28,7 +28,7 @@ const priceRequested=/harga|berapa|biaya|tarif|nominal|price|harganya|hargannya|
 const wantsAllPrices=priceRequested&&/semua|daftar|list|katalog|masing|produk/i.test(message);
 if(wantsAllPrices){selected=catalog;source='FULL_CATALOG_REQUEST';}
 const hidePrice=value=>String(value??'').replace(/Paket bulanan Rp[0-9.,]+;?\s*sekali beli Rp[0-9.,]+\.?/gi,'').split('\n').filter(s=>!/\b(harga|promo|diskon)\b|Rp\s*[0-9]/i.test(s)).join('\n').trim().replace(/Rp\s*[0-9.,]+/gi,'');
-const publicCatalog=catalog.map(k=>{const p=k.payload??{};return {name:cut(p.product_name||p.name||k.source_key,120),purpose:cut(hidePrice(p.short_description||p.description||p.benefits||p.full_description||''),180)};});
+const publicCatalog=catalog.map(k=>{const p=k.payload??{};return {name:cut(p.product_name||p.name||k.source_key,120),purpose:cut(hidePrice(p.benefits||p.full_description||p.description||p.short_description||''),180)};});
 const products=selected.slice(0,wantsAllPrices?catalog.length:3).map(k=>{const p=k.payload??{},s=p.sales_guide??{};
  return {source_key:k.source_key,name:cut(p.product_name,120),
  ...(wantsAllPrices?{}:{description:cut(priceRequested?(p.full_description||p.description):hidePrice(p.full_description||p.description),1300),
