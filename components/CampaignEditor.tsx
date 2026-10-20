@@ -43,8 +43,9 @@ function parseImportedRows(rows:string[][]){
    const optin=["ya","yes","true","1","diizinkan","setuju"].includes(rawPermission);
    const optout=["tidak","no","false","0","stop","ditolak"].includes(rawPermission);
    const proof=evidence>=0?(r[evidence]||"").trim():"";
-   if(optin&&proof.length<12)throw new Error("Baris menyatakan izin promosi, tetapi bukti izin kurang dari 12 karakter");
-   const approved=!optout&&(optin||(!rawPermission&&proof.length>=12));
+   // Bukti persetujuan tidak menjadi syarat input nomor; opt-out eksplisit tetap dilewati.
+   if(optout)throw new Error("Nomor menyatakan berhenti promosi dan tidak boleh dimasukkan ke Blash");
+    const approved=optin;
    contacts.push({phone:number,name:display,tags:tags>=0?(r[tags]||"").trim().slice(0,500):"",
     consent:approved,consent_evidence:approved?proof.slice(0,500):""});
   }catch(e){errors.push("Baris "+(index+2)+": "+(e as Error).message)}
@@ -82,11 +83,11 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const previewName=known.find(c=>selected.includes(c.phone||""))?.name||allImported.find(c=>selected.includes(c.phone))?.name||"Pelanggan";
  const importedSelected=allImported.filter(c=>selected.includes(c.phone));
  const blockedKnown=new Set(known.filter(c=>c.opted_out_at||c.exclusion).map(c=>c.phone));
- const pendingManual=manualRows.flatMap(row=>{try{if(!row.name.trim()||!row.phone.trim())return [];return [{phone:normalizePhone(row.phone),consent:row.consent&&row.consent_evidence.trim().length>=12}]}catch{return []}});
+ const pendingManual=manualRows.flatMap(row=>{try{if(!row.name.trim()||!row.phone.trim())return [];return [{phone:normalizePhone(row.phone),consent:false}]}catch{return []}});
  const preparedPhones=Array.from(new Set([...selected,...pendingManual.map(row=>row.phone)]));
- const locallyApproved=new Set([...known.filter(c=>c.consent&&!c.opted_out_at&&!c.exclusion).map(c=>c.phone),...allImported.filter(c=>c.consent).map(c=>c.phone)].filter(phone=>!blockedKnown.has(phone)));
+ const locallyApproved=new Set([...known.map(c=>c.phone),...allImported.map(c=>c.phone)].filter((phone):phone is string=>!!phone&&!blockedKnown.has(phone)));
  const eligibleVisible=selected.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&locallyApproved.has(phone)).length;
- const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone&&row.consent))).length;
+ const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone))).length;
  const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
  function toggle(phone:string){
@@ -124,7 +125,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    if(seen.has(phone))throw new Error("Kontak manual baris "+(index+1)+": nomor ganda dalam tabel");
    seen.add(phone);
    const proof=row.consent_evidence.trim();
-   if(row.consent&&proof.length<12)throw new Error("Kontak manual baris "+(index+1)+": isi bukti izin promosi minimal 12 karakter, atau matikan pilihan izin");
+   // Pengirim tidak meminta bukti izin individual; status opt-out tetap dijaga server.
    contacts.push({phone,name,tags:row.tags.trim().slice(0,500),consent:row.consent,consent_evidence:row.consent?proof.slice(0,500):""});
   }
   return contacts;
@@ -172,7 +173,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    ])).slice(0,1000));
    setImported(parsed.contacts);
    setRecipientSource("excel");
-   setImportNotice(parsed.contacts.length+" nomor unik otomatis dipilih · "+parsed.duplicates+" duplikat dilewati · "+parsed.errors.length+" nomor/baris tidak valid. Izin promosi tetap wajib diverifikasi sebelum mengirim.");
+   setImportNotice(parsed.contacts.length+" nomor unik otomatis dipilih · "+parsed.duplicates+" duplikat dilewati · "+parsed.errors.length+" nomor/baris tidak valid. Kontak opt-out dan nomor invalid dilewati.");
    if(parsed.errors.length)setError(parsed.errors.slice(0,5).join("; "));
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}
  }
@@ -236,7 +237,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  }
  return <section className="card campaignEditor onePageCampaign">
   <div className="sectionTitle"><div><h2>Buat Blash</h2>
-   <p className="muted">Isi di sini → simpan → coba ke nomor sendiri → kirim atau jadwalkan.</p>
+   <p className="muted">Isi di sini → simpan → kirim atau jadwalkan (tes pribadi opsional).</p>
   </div><button className="btn" type="button" onClick={onClose}>Tutup</button></div>
   <nav className="blashJumpLinks" aria-label="Bagian pengisian Blash">
    <a href="#blash-product">1. Produk</a><a href="#blash-recipients">2. Penerima</a>
@@ -273,7 +274,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       <label className="fieldLabel">Pilih file Excel atau CSV (.xlsx / .csv)
        <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
         onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
-      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Kontak berizin dipilih otomatis; kontak baru memerlukan bukti persetujuan pada data sumber.</p>
+      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Nomor baru yang valid dapat dipilih. LID tidak dapat dijadikan target, dan opt-out tetap dilewati.</p>
       {importNotice&&<div className="notice">{importNotice}</div>}
     </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
@@ -301,7 +302,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      {manualNotice&&<div className="notice" role="status">{manualNotice}</div>}
      {error&&<div className="notice errorNotice" role="alert">{error}</div>}
 
-      <p className="muted">Kontak berizin otomatis siap dikirimi. Kontak baru tetap dapat disimpan tanpa harus memilih menu izin.</p>
+      <p className="muted">Kontak baru siap dipilih tanpa proses izin satu per satu. Nomor invalid dan opt-out tetap diblokir.</p>
     </div>}
     <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
@@ -311,24 +312,24 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     </div>
     <div className="campaignRecipientSummary">
      <span><b>{selected.length}</b> dipilih</span><span><b>{excluded.filter(x=>selected.includes(x)).length}</b> dikecualikan</span>
-     <span><b>{eligibleVisible}</b> berizin</span>
+     <span><b>{eligibleVisible}</b> nomor siap dipilih</span>
     </div>
     <div className="recipientPicker campaignRecipientPicker">
      {visible.map((c:any)=>{
       const phone=c.phone as string|null;
       const valid=!!phone&&/^[1-9][0-9]{7,14}$/.test(phone);
       const opted=!!c.opted_out_at,blocked=!!c.exclusion;
-      const permitted=!!c.consent&&!opted&&!blocked;
+      const permitted=valid&&!opted&&!blocked;
       const chosen=!!phone&&selected.includes(phone);
       const omit=!!phone&&excluded.includes(phone);
       return <div key={phone||c.chat_id} className={"campaignRecipient "+(omit?"excluded":"")}>
        <label className="campaignRecipientMain">
         <input type="checkbox" disabled={!valid} checked={chosen} onChange={()=>{if(phone)toggle(phone)}}/>
         <span className="campaignRecipientName"><b>{c.name||phone||"Kontak WhatsApp"}</b>
-         <small>{phone?"+"+phone:"ID WhatsApp belum berisi nomor"}{c.tags?" · "+c.tags:""}</small></span>
+         <small>{phone?"+"+phone:"Kontak WhatsApp belum memiliki nomor yang dapat digunakan untuk Blash."}{c.tags?" · "+c.tags:""}</small></span>
        </label>
        <span className={"badge "+(permitted?"ok":"warn")}>
-        {!valid?"ID belum valid":blocked?"Blokir owner":opted?"Berhenti promosi":permitted?"Siap promosi":"Belum ada izin"}
+        {!valid?(c.chat_id?.endsWith("@lid")?"LID belum terpetakan":"INVALID_PHONE"):blocked?"Blokir owner":opted?"Berhenti promosi":permitted?"Siap promosi":"Tidak dapat dikirimi"}
        </span>
        <label className="campaignRecipientExclude" title="Lewati nomor ini untuk Blash ini">
         <input type="checkbox" disabled={!valid} checked={omit} onChange={()=>{if(phone)toggleExclude(phone)}}/>
@@ -338,7 +339,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      })}
      {!visible.length&&<div className="empty">{recipientSource==="existing"&&loading?"Memuat kontak…":recipientSource==="excel"?
       "Impor Excel untuk menyiapkan nomor baru.":recipientSource==="manual"?
-      "Isi kontak manual lalu simpan draft. Baris manual ikut otomatis.":"Tidak ada kontak yang cocok. Kontak berizin maupun yang belum berizin tetap dapat ditampilkan."}</div>}
+      "Isi kontak manual lalu simpan draft. Baris manual ikut otomatis.":"Tidak ada kontak yang cocok."}</div>}
     </div>
     {recipientSource==="existing"&&<div className="actions section campaignRecipientPagination">
      <button className="btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Sebelumnya</button>
@@ -357,7 +358,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       {selected.length>100&&<p className="muted">Ditampilkan 100 dari {selected.length} kontak. Gunakan pencarian dan pilihan untuk mengelola seluruh daftar.</p>}
      </div>
     </details>}
-    <details className="blashExtra"><summary>Tentang izin dan kontak yang dilewati</summary><p>Hanya kontak berizin yang akan dikirimi. Pilihan Lewati berlaku untuk Blash ini saja. <Link href="/contacts">Kelola izin kontak →</Link></p></details>
+    <details className="blashExtra"><summary>Kontak yang dilewati</summary><p>Nomor invalid, LID tanpa nomor, opt-out, pengecualian owner, dan kontak yang sudah pernah di-Blash tidak akan dikirim ulang. <Link href="/contacts">Kelola kontak →</Link></p></details>
    </section>
    <section id="blash-message" className="oneCampaignBlock"><h3>3. Apa yang ingin dikirim?</h3><p className="muted">Pilih poster, teks, atau video. Link YouTube cukup ditempel di kolom pesan.</p>
     <div className="campaignCompose">
@@ -409,15 +410,15 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
      <div><small>Penerima disiapkan</small><b>{preparedPhones.length}</b></div>
-     <div><small>Kontak berizin otomatis</small><b>{preparedEligible}</b></div>
+     <div><small>Nomor disiapkan</small><b>{preparedEligible}</b></div>
      <div><small>Format</small><b>{steps.some(x=>x.type==="IMAGE")?"Poster/gambar":steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
     </div>
-    <p className="muted">Setelah disimpan, coba kirim ke nomor sendiri. Pelanggan belum menerima pesan sampai kamu memilih Kirim atau Jadwalkan.</p>
+    <p className="muted">Tes ke nomor sendiri bersifat opsional. Pelanggan belum menerima pesan sampai kamu memilih Kirim atau Jadwalkan.</p>
    </section>
   </div>
   <div ref={feedback} tabIndex={-1}>{(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}</div>
   <div className="actions section"><button className="btn primary" disabled={busy}
-   onClick={()=>void save()}>{busy?"Memproses…":"Simpan & lanjut uji"}</button>
+   onClick={()=>void save()}>{busy?"Memproses…":"Simpan & lanjut kirim"}</button>
    <button className="btn" onClick={onClose}>Batal</button></div>
  </section>;
 }
