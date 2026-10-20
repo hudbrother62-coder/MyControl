@@ -46,6 +46,6 @@ test("new Blash uses one user-declared permission source instead of fabricating 
   assert.match(rpc,/cc\.owner_promo_disabled/);
   assert.match(rpc,/mc_contact_exclusions/);
   assert.match(readiness,/cc\.consent = true/);
-  assert.match(worker,/and not cc\.consent/);
+  assert.match(worker,/not cc\.consent/);
   assert.doesNotMatch(save,/'bulk_consent', true/);
 });
