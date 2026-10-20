@@ -325,6 +325,33 @@ export default function Automation() {
               Tes koneksi dan lihat status integrasi
             </Link>
           </section>
+          <section className="card section" aria-label="Metrik antrean AI dan outbound">
+            <h2>Antrean &amp; performa</h2>
+            <p className="muted">Dihitung dari database untuk akun WhatsApp aktif. Angka ini bukan tanda bahwa pengiriman WhatsApp telah diterima pelanggan.</p>
+            <div className="grid3">
+              {([
+                ["AI menunggu", data.metrics?.ai_pending ?? "—"],
+                ["AI diproses", data.metrics?.ai_processing ?? "—"],
+                ["AI retry", data.metrics?.ai_retry ?? "—"],
+                ["AI gagal", data.metrics?.ai_failed ?? "—"],
+                ["Outbound antre", data.metrics?.outbound_pending ?? "—"],
+                ["Outbound diproses", data.metrics?.outbound_processing ?? "—"],
+                ["Outbound retry", data.metrics?.outbound_retry ?? "—"],
+                ["Outbound gagal", data.metrics?.outbound_failed ?? "—"],
+                ["Outbound UNKNOWN", data.metrics?.outbound_unknown ?? "—"],
+                ["LID tanpa nomor", data.metrics?.lid_unmapped ?? "—"],
+                ["Antrean tertua (detik)", data.metrics?.ai_oldest_wait_seconds ?? "—"],
+                ["Rata-rata AI (detik)", data.metrics?.ai_avg_seconds ?? "—"],
+                ["Rata-rata outbound (detik)", data.metrics?.outbound_avg_seconds ?? "—"],
+              ] as [string,number | string][]).map(([label,value])=>(
+                <div className="card" key={label}>
+                  <small className="muted">{label}</small>
+                  <h3>{value}</h3>
+                </div>
+              ))}
+            </div>
+            <p className="muted">UNKNOWN harus direkonsiliasi satu per satu. Nomor LID yang belum terpetakan tidak boleh menjadi target Blash.</p>
+          </section>
           <section className="section">
             <h2>Konfigurasi yang dibaca worker</h2>
             <div className="grid3">
