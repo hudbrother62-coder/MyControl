@@ -3,7 +3,7 @@ import { db, rpc } from "@/lib/server/database";
 export async function GET(req: Request) {
   try {
     authorize(req);
-    const [config, workers, errors, queue, metrics] = await Promise.all([
+    const [config, workers, errors, queue, metrics, attention] = await Promise.all([
       rpc("mc_read_web_controls"),
       db("mc_worker_controls?select=*&order=last_seen.desc"),
       db(
@@ -13,9 +13,10 @@ export async function GET(req: Request) {
         "mc_outbound_jobs?select=id,chat_id,kind,status,last_error,created_at&status=in.(FAILED,UNKNOWN,RETRY,PROCESSING)&order=created_at.desc&limit=30",
       ),
       rpc("mc_queue_metrics"),
+      rpc("mc_queue_attention"),
     ]);
     return Response.json(
-      { ...config, workers, errors, queue, metrics },
+      { ...config, workers, errors, queue, metrics, attention },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (e) {
@@ -29,6 +30,11 @@ export async function POST(req: Request) {
     if (raw.length > 20000)
       return Response.json({ error: "Data terlalu besar" }, { status: 413 });
     const b = JSON.parse(raw);
+    if (b.action === "ai_concurrency") {
+      if (!Number.isInteger(b.max) || b.max < 1 || b.max > 6)
+        throw new Error("Batas concurrency AI harus 1–6");
+      return Response.json(await rpc("mc_set_ai_max_concurrency", { p_limit: b.max }));
+    }
     if (b.action === "retry") {
       if (!/^[a-f0-9-]{36}$/i.test(b.id || ""))
         throw new Error("ID tidak valid");
