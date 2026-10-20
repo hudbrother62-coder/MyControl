@@ -63,6 +63,23 @@ export async function POST(req: Request) {
       if(b.scope!==null&&!['PROMOTION','ALL_AUTOMATION'].includes(b.scope))throw new Error('Jenis pengecualian tidak valid');
       return Response.json(await rpc('mc_set_contact_exclusion',{p_phone:normalizePhone(b.phone),p_scope:b.scope,p_reason:String(b.reason||'').slice(0,500)}));
     }
+    if (b.action === "bulk_consent") {
+      if (typeof b.all !== "boolean" ||
+          typeof b.evidence !== "string" ||
+          b.evidence.trim().length < 12 || b.evidence.trim().length > 500 ||
+          typeof b.search !== "string" || b.search.length > 80)
+        throw new Error("Pilihan kontak atau sumber persetujuan tidak valid");
+      if (!b.all && (!Array.isArray(b.phones) || b.phones.length < 1 ||
+          b.phones.length > 1000))
+        throw new Error("Pilih 1 sampai 1000 kontak");
+      const phones: string[] = b.all ? [] :
+        [...new Set(b.phones.map((p: unknown) => normalizePhone(String(p))))];
+      return Response.json(await rpc("mc_bulk_contact_promo_consent", {
+        p_phones: phones, p_all: b.all,
+        p_search: b.all ? b.search.trim() : "",
+        p_evidence: b.evidence.trim(),
+      }));
+    }
     if (b.action === "import") {
       if (!Array.isArray(b.contacts) || b.contacts.length > 1000)
         throw new Error("Maksimal 1000 kontak");

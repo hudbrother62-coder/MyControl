@@ -20,11 +20,69 @@ export default function Contacts() {
     [busy, setBusy] = useState(false),
     [show, setShow] = useState(false);
   const [managedContact, setManagedContact] = useState<any>(null);
+  const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
+  const [selectAllContacts, setSelectAllContacts] = useState(false);
+  const [bulkEvidence, setBulkEvidence] = useState("");
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const contacts = data?.contacts || [];
   const eligible = useMemo(
     () => contacts.filter((c: any) => c.phone && c.consent && !c.opted_out_at && !c.exclusion).length,
     [contacts],
   );
+  const selectablePage = useMemo(
+    () => contacts.filter((c: any) =>
+      typeof c.phone === "string" && /^[1-9][0-9]{7,14}$/.test(c.phone) &&
+      !c.opted_out_at && !c.exclusion),
+    [contacts],
+  );
+  const allPageSelected = selectablePage.length > 0 &&
+    selectablePage.every((c: any) => selectedPhones.includes(c.phone));
+  function togglePage() {
+    if (selectAllContacts) {
+      setSelectAllContacts(false);
+      setSelectedPhones([]);
+      return;
+    }
+    const pagePhones = selectablePage.map((c: any) => c.phone as string);
+    setSelectedPhones((prev) => allPageSelected
+      ? prev.filter((p) => !pagePhones.includes(p))
+      : [...new Set([...prev, ...pagePhones])]);
+  }
+  function togglePhone(phone: string) {
+    setSelectAllContacts(false);
+    setSelectedPhones((prev) => prev.includes(phone)
+      ? prev.filter((p) => p !== phone) : [...prev, phone]);
+  }
+  async function allowBulkPromotions() {
+    if (bulkBusy || (!selectAllContacts && selectedPhones.length === 0) ||
+        !bulkConfirmed || bulkEvidence.trim().length < 12) return;
+    setBulkBusy(true);
+    setNotice("");
+    try {
+      const result = await campaignRequest({
+        action: "bulk_consent",
+        all: selectAllContacts,
+        search: selectAllContacts ? search : "",
+        phones: selectAllContacts ? [] : selectedPhones,
+        evidence: bulkEvidence.trim(),
+      });
+      setNotice(
+        `Izin promosi diperbarui untuk ${result.updated} kontak. ` +
+        `${result.already_allowed} sudah berizin; ${result.skipped} dilewati ` +
+        "(berhenti promosi, dikecualikan, atau belum memenuhi syarat).",
+      );
+      setSelectedPhones([]);
+      setSelectAllContacts(false);
+      setBulkEvidence("");
+      setBulkConfirmed(false);
+      await refresh();
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Gagal memperbarui izin promosi.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
   function parse(text = raw) {
     try {
       setPreview(parseContacts(text));
@@ -225,16 +283,80 @@ export default function Contacts() {
           onChange={(e) => {
             setSearch(e.target.value);
             setOffset(0);
+            setSelectedPhones([]);
+            setSelectAllContacts(false);
           }}
         />
         <button className="btn" onClick={() => void refresh()}>
           Perbarui
         </button>
       </div>
+      <section className="card section" aria-label="Izin promosi massal">
+        <div className="sectionTitle">
+          <h2>Izin promosi massal</h2>
+          <span className="muted">
+            {selectAllContacts ? "Seluruh kontak yang cocok dengan pencarian" :
+              selectedPhones.length + " kontak dipilih"}
+          </span>
+        </div>
+        <p className="muted">
+          Pilih kotak di samping kontak, atau gunakan Pilih semua kontak untuk
+          mencakup seluruh halaman hasil pencarian. Kontak yang telah berhenti,
+          dikecualikan, atau belum memiliki nomor WhatsApp terverifikasi dilewati.
+        </p>
+        <div className="actions">
+          <button className="btn" disabled={bulkBusy || selectablePage.length === 0}
+            onClick={togglePage}>
+            {allPageSelected && !selectAllContacts ? "Batalkan pilihan halaman" : "Pilih semua di halaman"}
+          </button>
+          <button className="btn" disabled={bulkBusy || !data?.total}
+            onClick={() => {
+              setSelectAllContacts((value) => !value);
+              setSelectedPhones([]);
+            }}>
+            {selectAllContacts ? "Batalkan pilih semua" : "Pilih semua kontak"}
+          </button>
+          {(selectedPhones.length > 0 || selectAllContacts) &&
+            <button className="btn" disabled={bulkBusy} onClick={() => {
+              setSelectedPhones([]);
+              setSelectAllContacts(false);
+            }}>Bersihkan pilihan</button>}
+        </div>
+        {(selectedPhones.length > 0 || selectAllContacts) && (
+          <div className="section" style={{ maxWidth: 650 }}>
+            <label className="fieldLabel">
+              Sumber persetujuan promosi
+              <input className="input" value={bulkEvidence} maxLength={500}
+                placeholder="Contoh: formulir persetujuan pelanggan tanggal ..."
+                onChange={(e) => setBulkEvidence(e.target.value)} />
+            </label>
+            <label className="checkLine">
+              <input type="checkbox" checked={bulkConfirmed}
+                onChange={(e) => setBulkConfirmed(e.target.checked)} />
+              Saya memastikan kontak yang dipilih telah memberi izin promosi.
+            </label>
+            <div className="actions">
+              <button className="btn primary" disabled={bulkBusy || !bulkConfirmed ||
+                  bulkEvidence.trim().length < 12}
+                onClick={() => void allowBulkPromotions()}>
+                {bulkBusy ? "Menyimpan izin…" :
+                  selectAllContacts ? "Izinkan promosi semua kontak" :
+                  "Izinkan promosi " + selectedPhones.length + " kontak"}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
       <div className="card tableWrap section">
         <table className="table">
           <thead>
             <tr>
+              <th>
+                <input type="checkbox" aria-label="Pilih semua kontak di halaman"
+                  disabled={bulkBusy || selectablePage.length === 0}
+                  checked={selectAllContacts || allPageSelected}
+                  onChange={togglePage} />
+              </th>
               <th>Kontak</th>
               <th>Label</th>
               <th>Promosi</th>
@@ -245,6 +367,14 @@ export default function Contacts() {
           <tbody>
             {contacts.map((c: any) => (
               <tr key={c.chat_id}>
+                <td>
+                  <input type="checkbox" aria-label={"Pilih kontak " + c.name}
+                    disabled={bulkBusy || !c.phone ||
+                      !/^[1-9][0-9]{7,14}$/.test(c.phone) ||
+                      !!c.opted_out_at || !!c.exclusion}
+                    checked={selectAllContacts || selectedPhones.includes(c.phone)}
+                    onChange={() => togglePhone(c.phone)} />
+                </td>
                 <td>
                   <b>{c.name}</b>{c.priority === "IMPORTANT" && <span className="badge warn" style={{ marginLeft: 8 }}>Penting</span>}
                   <div className="muted">{c.phone ? "+" + c.phone : "ID WhatsApp: " + c.chat_id}</div>
