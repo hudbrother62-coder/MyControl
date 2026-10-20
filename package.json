@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/database.cjs tests/workflow.cjs tests/server.cjs tests/legacy.cjs tests/legacy-trigger-security.cjs tests/workflow-separation.cjs tests/campaigns.cjs tests/campaign-input.cjs tests/navigation.cjs tests/web-controls.cjs tests/loading.cjs tests/efficient-reads.cjs tests/exclusions.cjs tests/workflow-release.cjs tests/contact-sync.cjs tests/contact-controls.cjs tests/prime-store.cjs tests/blash-once.cjs tests/cs2-cutover.cjs tests/catalog-authority.cjs tests/production-flow.cjs tests/account-batching.cjs",
+    "test": "node --test tests/database.cjs tests/workflow.cjs tests/server.cjs tests/legacy.cjs tests/legacy-trigger-security.cjs tests/blash-csnew2-session.cjs tests/workflow-separation.cjs tests/campaigns.cjs tests/campaign-input.cjs tests/navigation.cjs tests/web-controls.cjs tests/loading.cjs tests/efficient-reads.cjs tests/exclusions.cjs tests/workflow-release.cjs tests/contact-sync.cjs tests/contact-controls.cjs tests/prime-store.cjs tests/blash-once.cjs tests/cs2-cutover.cjs tests/catalog-authority.cjs tests/production-flow.cjs tests/account-batching.cjs",
     "typecheck": "tsc --noEmit",
     "test:http": "node tests/http-smoke.cjs",
     "workflow:build": "python3 scripts/build-workflow-release.py"
