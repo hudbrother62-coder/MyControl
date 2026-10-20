@@ -31,7 +31,8 @@ export async function GET(req: Request) {
     return Response.json({
       account,
       leads: leads.map((l: any) => ({
-        id: l.chat_id, name: l.display_name || l.phone || l.chat_id, phone: l.phone || "",
+        id: l.chat_id, name: l.display_name || l.phone || l.chat_id,
+        phone: typeof l.phone === "string" && /^[1-9][0-9]{7,14}$/.test(l.phone) ? l.phone : "",
         product: l.product_id || "-", status: l.stage === "WON" ? "CLOSING" :
           ["HUMAN_HANDOFF", "DO_NOT_CONTACT"].includes(l.stage) ? "PENDING" : l.lead_status,
         value: Number(l.estimated_value || 0), note: l.notes || "WhatsApp lead", updatedAt: l.updated_at,
@@ -43,6 +44,6 @@ export async function GET(req: Request) {
 function conversation(l: any) {
   const takeover = l.human_takeover_until === "infinity" ||
     Boolean(l.human_takeover_until && Date.parse(l.human_takeover_until) > Date.now());
-  return { id: l.chat_id, name: l.display_name || l.phone || l.chat_id, phone: l.phone || l.chat_id.split("@")[0],
+  return { id: l.chat_id, name: l.display_name || l.phone || l.chat_id, phone: typeof l.phone === "string" && /^[1-9][0-9]{7,14}$/.test(l.phone) ? l.phone : "",
     product: l.product_id || "-", aiEnabled: !takeover, humanTakeover: takeover, updatedAt: l.updated_at };
 }
