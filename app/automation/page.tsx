@@ -22,7 +22,8 @@ export default function Automation() {
     [dirty, setDirty] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
-    [maxConcurrency,setMaxConcurrency] = useState(4);
+    [maxConcurrency,setMaxConcurrency] = useState(4),
+    [maxAttempts,setMaxAttempts] = useState(3);
   async function load() {
     try {
       const r = await fetch("/api/control/settings", { cache: "no-store" });
@@ -31,6 +32,7 @@ export default function Automation() {
       setData(d);
       setForm(d.settings);
       setMaxConcurrency(Number(d.attention?.ai_max_concurrency ?? 4));
+      setMaxAttempts(Number(d.attention?.ai_max_attempts ?? 3));
       setDirty(false);
       setMessage("");
     } catch (e) {
@@ -86,6 +88,18 @@ export default function Automation() {
     } finally {
       setBusy(false);
     }
+  }
+  async function saveMaxAttempts() {
+    if(busy)return;
+    setBusy(true);
+    try {
+      const r=await fetch("/api/control/settings",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({action:"ai_max_attempts",max:maxAttempts})
+      });
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"Gagal menyimpan batas percobaan");
+      await load();setMessage("Maksimal percobaan AI tersimpan untuk retry berikutnya.");
+    } catch(e) {setMessage((e as Error).message)} finally {setBusy(false)}
   }
   async function saveConcurrency() {
     if(busy)return;
@@ -376,6 +390,12 @@ export default function Automation() {
               </label>
               <button className="btn" type="button" disabled={busy || !Number.isInteger(maxConcurrency) || maxConcurrency<1 || maxConcurrency>6}
                 onClick={()=>void saveConcurrency()}>Simpan batas AI</button>
+              <label className="fieldLabel">Maksimal percobaan AI
+                <input className="input" type="number" min={1} max={5} step={1}
+                  value={maxAttempts} onChange={e=>setMaxAttempts(Number(e.target.value))} />
+              </label>
+              <button className="btn" type="button" disabled={busy || !Number.isInteger(maxAttempts) || maxAttempts<1 || maxAttempts>5}
+                onClick={()=>void saveMaxAttempts()}>Simpan percobaan</button>
             </div>
           </section>
           <section className="card section" aria-label="Jobs bermasalah">
