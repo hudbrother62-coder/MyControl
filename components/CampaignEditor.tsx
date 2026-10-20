@@ -91,8 +91,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const [manualNotice,setManualNotice]=useState("");
  const [pasted,setPasted]=useState("");const pastedResult=useMemo(()=>parsePastedNumbers(pasted),[pasted]);
  const [savedDraft,setSavedDraft]=useState("");
- useEffect(()=>{setSavedDraft("");},[pasted,imported,selected,excluded,steps,product,name,manualRows]);
+
  const [steps,setSteps]=useState<CampaignStep[]>([{type:"TEXT",body:""}]);
+ useEffect(()=>{setSavedDraft("");},[pasted,imported,selected,excluded,steps,product,name,manualRows]);
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
  const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
