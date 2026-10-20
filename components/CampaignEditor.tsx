@@ -72,7 +72,7 @@ function parsePastedNumbers(raw:string){
    seen.add(phone);
    const name=row.replace(match,"").replace(/^[\s,;|:\t-]+|[\s,;|:\t-]+$/g,"").trim().slice(0,100)||("Pelanggan "+phone.slice(-4));
    contacts.push({phone,name,tags:"",consent:false,consent_evidence:""});
-   if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
+   if(contacts.length>=1000){errors.push("Maksimal 1.000 nomor per Blash; kelebihan nomor dilewati");break}
   }catch(e){
    if((e as Error).message.includes("Maksimal"))throw e;
    errors.push("Baris "+(index+1)+": "+(e as Error).message);
@@ -91,8 +91,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const [manualNotice,setManualNotice]=useState("");
  const [pasted,setPasted]=useState("");const pastedResult=useMemo(()=>parsePastedNumbers(pasted),[pasted]);
  const [savedDraft,setSavedDraft]=useState("");
+ useEffect(()=>{setSavedDraft("");},[pasted,imported,selected,excluded,steps,product,name,manualRows]);
  const [steps,setSteps]=useState<CampaignStep[]>([{type:"TEXT",body:""}]);
- const [bot,setBot]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [busy,setBusy]=useState(false),[error,setError]=useState("");
  const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
  const feedback=useRef<HTMLDivElement>(null);
@@ -276,7 +277,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   </div><button className="btn" type="button" onClick={onClose}>Tutup</button></div>
   <nav className="blashJumpLinks" aria-label="Bagian pengisian Blash">
    <a href="#blash-product">1. Produk</a><a href="#blash-recipients">2. Penerima</a>
-   <a href="#blash-message">3. Isi pesan</a><a href="#blash-review">4. Simpan</a>
+   <a href="#blash-message">3. Isi pesan</a><a href="#blash-review">4. Kirim</a>
   </nav>
   <div className="oneCampaignGrid">
    <section id="blash-product" className="oneCampaignBlock"><h3>1. Pilih produk</h3>
@@ -295,7 +296,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      <label className="fieldLabel"><b>Tempel nomor WhatsApp</b>
       <textarea className="input" rows={6} value={pasted}
        onChange={e=>{setPasted(e.target.value);setRecipientSource("paste");}}
-       placeholder={"081234567890\\n082345678901\\n6281234567890\\nNama Sekolah, 081234567890"}
+       placeholder={"081234567890\n082345678901\n6281234567890\nNama Sekolah, 081234567890"}
        aria-label="Tempel daftar nomor WhatsApp untuk Blash" />
      </label>
      <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
@@ -323,16 +324,6 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      <Link className="btn campaignManageContact" href="/contacts">Menu kontak →</Link>
     </div>
     </details>
-    {recipientSource==="excel"&&<div className="campaignImportPanel">
-      <div className="sectionTitle"><div><b>Excel/CSV khusus Blash</b>
-       <p className="muted">Tidak langsung masuk Kontak Utama. Nomor baru akan muncul setelah pesan diterima gateway atau ada interaksi masuk.</p>
-      </div><button className="btn" onClick={()=>void template()}>Template Excel</button></div>
-      <label className="fieldLabel">Pilih file Excel atau CSV (.xlsx / .csv)
-       <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
-        onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
-      <p className="muted">Excel dengan kolom <b>name</b> dan <b>phone</b> langsung terbaca (juga mendukung nama/nomor). Nomor baru yang valid dapat dipilih. LID tidak dapat dijadikan target, dan opt-out tetap dilewati.</p>
-      {importNotice&&<div className="notice">{importNotice}</div>}
-    </div>}
     {recipientSource==="manual"&&<div className="campaignImportPanel campaignManualPanel">
      <div className="campaignManualHeading"><div><b>Tambah kontak manual</b>
       <p className="muted">Isi nama dan nomor. Baris terisi otomatis tersimpan bersama Blash.</p></div>
@@ -462,7 +453,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </aside>
     </div>
    </section>
-   <section id="blash-review" className="oneCampaignBlock"><h3>4. Periksa dan simpan</h3>
+   <section id="blash-review" className="oneCampaignBlock"><h3>4. Kirim atau jadwalkan</h3>
     <p className="muted">AI Auto Reply nonaktif untuk Blash ini; balasan pelanggan tetap masuk Inbox.</p>
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
@@ -477,7 +468,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   <div className="actions section"><button className="btn primary" disabled={busy||preparedEligible===0}
    onClick={()=>void save("NOW")}>{busy?"Memproses…":"Kirim sekarang ("+preparedEligible+" nomor)"}</button>
    <button className="btn" disabled={busy} onClick={()=>void save("DRAFT")}>Simpan draft / jadwalkan</button>
-   {savedDraft&&<button className="btn" type="button" onClick={()=>onDone(savedDraft)}>Buka draft tersimpan</button>
+   {savedDraft&&<button className="btn" type="button" onClick={()=>onDone(savedDraft)}>Buka draft tersimpan</button>}
    <button className="btn" onClick={onClose}>Batal</button></div>
  </section>;
 }
