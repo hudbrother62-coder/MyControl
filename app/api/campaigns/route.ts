@@ -73,7 +73,7 @@ export async function POST(req: Request) {
           b.phones.length > 1000))
         throw new Error("Pilih 1 sampai 1000 kontak");
       const phones: string[] = b.all ? [] :
-        [...new Set(b.phones.map((p: unknown) => normalizePhone(String(p))))];
+        [...new Set<string>((b.phones as unknown[]).map((p: unknown) => normalizePhone(String(p))))];
       return Response.json(await rpc("mc_bulk_contact_promo_consent", {
         p_phones: phones, p_all: b.all,
         p_search: b.all ? b.search.trim() : "",

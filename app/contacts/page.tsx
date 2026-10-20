@@ -372,7 +372,9 @@ export default function Contacts() {
                     disabled={bulkBusy || !c.phone ||
                       !/^[1-9][0-9]{7,14}$/.test(c.phone) ||
                       !!c.opted_out_at || !!c.exclusion}
-                    checked={selectAllContacts || selectedPhones.includes(c.phone)}
+                    checked={!!(c.phone && !c.opted_out_at && !c.exclusion &&
+                      /^[1-9][0-9]{7,14}$/.test(c.phone)) &&
+                      (selectAllContacts || selectedPhones.includes(c.phone))}
                     onChange={() => togglePhone(c.phone)} />
                 </td>
                 <td>
