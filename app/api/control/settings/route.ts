@@ -30,6 +30,11 @@ export async function POST(req: Request) {
     if (raw.length > 20000)
       return Response.json({ error: "Data terlalu besar" }, { status: 413 });
     const b = JSON.parse(raw);
+    if (b.action === "ai_max_attempts") {
+      if (!Number.isInteger(b.max) || b.max < 1 || b.max > 5)
+        throw new Error("Percobaan AI harus 1–5");
+      return Response.json(await rpc("mc_set_ai_max_attempts", { p_max: b.max }));
+    }
     if (b.action === "ai_concurrency") {
       if (!Number.isInteger(b.max) || b.max < 1 || b.max > 6)
         throw new Error("Batas concurrency AI harus 1–6");
