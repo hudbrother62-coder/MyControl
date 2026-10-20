@@ -171,7 +171,7 @@ export default function Inbox() {
               >
                 <b>{x.name}</b>
                 <span>{x.product}</span>
-                <small>{x.phone}</small>
+                <small>{x.phone ? "+" + x.phone : x.id.endsWith("@lid") ? "LID WhatsApp · nomor belum terpetakan" : "Nomor telepon belum tersedia"}</small>
               </button>
             ))}
             {!filteredConversations.length && (
@@ -189,7 +189,7 @@ export default function Inbox() {
                 <div>
                   <b>{c.name}</b>
                   <div className="tiny muted">
-                    {c.phone} · {c.product}
+                    {c.phone ? "+" + c.phone : c.id.endsWith("@lid") ? "LID WhatsApp (nomor belum terpetakan)" : "Nomor telepon belum tersedia"} · {c.product}
                   </div>
                 </div>
                 <div className="actions">
