@@ -91,9 +91,11 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const [manualNotice,setManualNotice]=useState("");
  const [pasted,setPasted]=useState("");const pastedResult=useMemo(()=>parsePastedNumbers(pasted),[pasted]);
  const [savedDraft,setSavedDraft]=useState("");
+ const [listConsentConfirmed,setListConsentConfirmed]=useState(false);
+ const [consentSource,setConsentSource]=useState("");
 
  const [steps,setSteps]=useState<CampaignStep[]>([{type:"TEXT",body:""}]);
- useEffect(()=>{setSavedDraft("");},[pasted,imported,selected,excluded,steps,product,name,manualRows]);
+ useEffect(()=>{setSavedDraft("");},[pasted,imported,selected,excluded,steps,product,name,manualRows,listConsentConfirmed,consentSource]);
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
  const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
@@ -119,6 +121,13 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const preparedPhones=Array.from(new Set([...selected,...pendingManual.map(row=>row.phone),...pastedResult.contacts.map(c=>c.phone)]));
  const locallyApproved=new Set([...known.map(c=>c.phone),...allImported.map(c=>c.phone)].filter((phone):phone is string=>!!phone&&!blockedKnown.has(phone)));
  const eligibleVisible=selected.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&locallyApproved.has(phone)).length;
+ const documentedPhones=new Set([
+   ...known.filter(c=>c.consent===true&&!!c.phone).map(c=>c.phone as string),
+   ...allImported.filter(c=>c.consent&&c.consent_evidence.trim().length>=12).map(c=>c.phone),
+ ]);
+ const listConfirmed=listConsentConfirmed&&consentSource.trim().length>=12;
+ const readyPreview=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&
+   (documentedPhones.has(phone)||listConfirmed)).length;
  const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone))).length;
  const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
@@ -255,9 +264,24 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    const selectedPhones=Array.from(new Set([...selected,...pending.map(c=>c.phone),...pastedResult.contacts.map(c=>c.phone)]));
    if(!selectedPhones.length)throw new Error("Tambahkan kontak manual atau pilih minimal satu penerima");
    if(selectedPhones.length>1000)throw new Error("Maksimal 1.000 penerima per Blash");
+   if(listConsentConfirmed&&consentSource.trim().length<12)
+     throw new Error("Tuliskan sumber persetujuan pelanggan minimal 12 karakter, misalnya nama formulir atau daftar yang memang berizin.");
    const imports=new Map(allImported.map(c=>[c.phone,c]));
    for(const c of pending)imports.set(c.phone,c);
-   const included=Array.from(imports.values()).filter(c=>selectedPhones.includes(c.phone));
+   if(listConfirmed){
+     for(const contact of known.filter(c=>c.phone&&selectedPhones.includes(c.phone))){
+       if(!imports.has(contact.phone!))imports.set(contact.phone!,{
+         phone:contact.phone!,name:contact.name||("Pelanggan "+contact.phone!.slice(-4)),
+         tags:contact.tags||"",consent:true,consent_evidence:consentSource.trim()
+       });
+     }
+   }
+   const included=Array.from(imports.values()).filter(c=>selectedPhones.includes(c.phone))
+      .map(c=>listConfirmed?{...c,consent:true,consent_evidence:consentSource.trim()}:c);
+   if(included.some(c=>c.consent&&c.consent_evidence.trim().length<12))
+     throw new Error("Kontak berstatus setuju harus memiliki sumber persetujuan. Lengkapi bukti_izin di Excel atau konfirmasi satu sumber untuk daftar.");
+   if(mode==="NOW"&&readyPreview===0)
+     throw new Error("Belum ada penerima dengan izin promosi tercatat. Konfirmasikan sumber izin daftar yang memang sudah menyetujui.");
    if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
    const campaignName=name.trim()||("Promosi "+(products.find(p=>p.source_key===product)?.payload?.product_name||product)).slice(0,120);
@@ -455,19 +479,31 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     </div>
    </section>
    <section id="blash-review" className="oneCampaignBlock"><h3>4. Kirim atau jadwalkan</h3>
+    <label className="checkLine">
+     <input type="checkbox" checked={listConsentConfirmed}
+      onChange={e=>setListConsentConfirmed(e.target.checked)}/>
+     <span><b>Semua penerima pada daftar ini sudah menyetujui promosi WhatsApp</b>
+      <small>Cukup konfirmasi sekali untuk seluruh daftar yang benar-benar telah memberi izin. Nomor opt-out dan nomor yang diblokir tetap dilewati.</small></span>
+    </label>
+    {listConsentConfirmed&&<label className="fieldLabel">Sumber persetujuan daftar
+     <input className="input" value={consentSource} maxLength={500}
+      onChange={e=>setConsentSource(e.target.value)}
+      placeholder="Contoh: Form pendaftaran pelanggan 15 Oktober 2026"/>
+     <small className="muted">Cantumkan sumber izin yang benar-benar tersedia, bukan keterangan buatan.</small>
+    </label>}
     <p className="muted">AI Auto Reply nonaktif untuk Blash ini; balasan pelanggan tetap masuk Inbox.</p>
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
      <div><small>Penerima disiapkan</small><b>{preparedPhones.length}</b></div>
-     <div><small>Nomor disiapkan</small><b>{preparedEligible}</b></div>
+     <div><small>Siap berdasarkan izin tercatat</small><b>{readyPreview}</b></div>
      <div><small>Format</small><b>{steps.some(x=>x.type==="IMAGE")?"Poster/gambar":steps.some(x=>x.type==="VIDEO")?"Video + teks":"Teks"}</b></div>
     </div>
     <p className="muted">Tes ke nomor sendiri bersifat opsional. Pelanggan belum menerima pesan sampai kamu memilih Kirim atau Jadwalkan.</p>
    </section>
   </div>
   <div ref={feedback} tabIndex={-1}>{(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}</div>
-  <div className="actions section"><button className="btn primary" disabled={busy||preparedEligible===0}
-   onClick={()=>void save("NOW")}>{busy?"Memproses…":"Kirim sekarang ("+preparedEligible+" nomor)"}</button>
+  <div className="actions section"><button className="btn primary" disabled={busy||readyPreview===0}
+   onClick={()=>void save("NOW")}>{busy?"Memproses…":"Kirim sekarang ("+readyPreview+" nomor)"}</button>
    <button className="btn" disabled={busy} onClick={()=>void save("DRAFT")}>Simpan draft / jadwalkan</button>
    {savedDraft&&<button className="btn" type="button" onClick={()=>onDone(savedDraft)}>Buka draft tersimpan</button>}
    <button className="btn" onClick={onClose}>Batal</button></div>
