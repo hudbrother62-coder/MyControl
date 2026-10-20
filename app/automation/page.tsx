@@ -21,7 +21,8 @@ export default function Automation() {
     [form, setForm] = useState<Settings | null>(null),
     [dirty, setDirty] = useState(false),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [maxConcurrency,setMaxConcurrency] = useState(4);
   async function load() {
     try {
       const r = await fetch("/api/control/settings", { cache: "no-store" });
@@ -29,6 +30,7 @@ export default function Automation() {
       if (!r.ok) throw new Error(d.error);
       setData(d);
       setForm(d.settings);
+      setMaxConcurrency(Number(d.attention?.ai_max_concurrency ?? 4));
       setDirty(false);
       setMessage("");
     } catch (e) {
@@ -84,6 +86,18 @@ export default function Automation() {
     } finally {
       setBusy(false);
     }
+  }
+  async function saveConcurrency() {
+    if(busy)return;
+    setBusy(true);
+    try {
+      const r=await fetch("/api/control/settings",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({action:"ai_concurrency",max:maxConcurrency})
+      });
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"Gagal menyimpan batas AI");
+      await load();setMessage("Batas concurrency tersimpan. Worker akan menerapkan pada klaim berikutnya.");
+    } catch(e) {setMessage((e as Error).message)} finally {setBusy(false)}
   }
   return (
     <>
@@ -351,6 +365,48 @@ export default function Automation() {
               ))}
             </div>
             <p className="muted">UNKNOWN harus direkonsiliasi satu per satu. Nomor LID yang belum terpetakan tidak boleh menjadi target Blash.</p>
+          </section>
+          <section className="card section" aria-label="Kontrol concurrency">
+            <h2>Batas AI paralel</h2>
+            <p className="muted">Maksimal AI job berjalan untuk akun aktif. Satu kontak tetap diproses berurutan. Worker live harus memakai pemanggilan batch agar beberapa job dapat dimulai dalam satu polling.</p>
+            <div className="actions">
+              <label className="fieldLabel">Maksimum job AI
+                <input className="input" type="number" min={1} max={6} step={1}
+                  value={maxConcurrency} onChange={e=>setMaxConcurrency(Number(e.target.value))} />
+              </label>
+              <button className="btn" type="button" disabled={busy || !Number.isInteger(maxConcurrency) || maxConcurrency<1 || maxConcurrency>6}
+                onClick={()=>void saveConcurrency()}>Simpan batas AI</button>
+            </div>
+          </section>
+          <section className="card section" aria-label="Jobs bermasalah">
+            <h2>AI FAILED / RETRY / PROCESSING</h2>
+            {!(data.attention?.ai_jobs||[]).length ? <p className="muted">Tidak ada AI job dalam status ini.</p> :
+            <div className="tableWrap"><table className="table">
+              <thead><tr><th>Job</th><th>Kontak WhatsApp</th><th>Status</th><th>Percobaan</th><th>Alasan</th></tr></thead>
+              <tbody>{(data.attention?.ai_jobs||[]).map((job:any)=>(
+                <tr key={job.id}><td><small>{job.id}</small></td><td>{job.phone?"+"+job.phone:job.chat_id}</td>
+                <td>{job.status}</td><td>{job.attempt_count}</td>
+                <td>{job.last_error||"Belum tersedia detail error asli"}</td></tr>
+              ))}</tbody>
+            </table></div>}
+            <p className="muted">Pemulihan AI tidak dijalankan otomatis. Periksa apakah ada pesan baru atau error deterministik sebelum memulai ulang job.</p>
+          </section>
+          <section className="card section" aria-label="Identitas dan nomor kontak">
+            <h2>LID tanpa nomor &amp; kontak invalid</h2>
+            <p className="muted">Kontak WhatsApp belum memiliki nomor yang dapat digunakan untuk Blash. Pertahankan ID sebagai identitas percakapan; jangan ubah angkanya menjadi nomor telepon.</p>
+            <div className="tableWrap"><table className="table">
+              <thead><tr><th>Jenis</th><th>Identitas</th><th>Kontak</th></tr></thead>
+              <tbody>
+                {(data.attention?.unmapped_lids||[]).map((item:any)=>(
+                  <tr key={item.chat_id}><td>LID belum terpetakan</td><td>{item.chat_id}</td><td>{item.display_name||"—"}</td></tr>
+                ))}
+                {(data.attention?.invalid_contacts||[]).map((item:any,i:number)=>(
+                  <tr key={item.input+"-"+i}><td>INVALID_PHONE</td><td>{item.input}</td><td>{item.name||"—"}</td></tr>
+                ))}
+                {!(data.attention?.unmapped_lids||[]).length && !(data.attention?.invalid_contacts||[]).length &&
+                  <tr><td colSpan={3}>Tidak ada kontak LID belum terpetakan atau nomor invalid yang terdaftar.</td></tr>}
+              </tbody>
+            </table></div>
           </section>
           <section className="section">
             <h2>Konfigurasi yang dibaca worker</h2>
