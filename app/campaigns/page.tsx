@@ -44,8 +44,7 @@ function Detail({
         if (!readiness?.worker_online) throw new Error("Pengirim belum terhubung. Buka Integrasi untuk memeriksa koneksi.");
          if(!aiReplyReady)throw new Error("AI balasan belum aktif. Aktifkan Bot dan Auto Reply di Pengaturan My Control sebelum memulai Blash.");
         if (readiness?.has_image && !readiness?.image_supported) throw new Error("Pengirim gambar belum siap. Periksa koneksi di Integrasi.");
-        if (!testReady) throw new Error("Kirim uji ke nomor WhatsApp milikmu terlebih dahulu, lalu tunggu status Diterima gateway. Status uji sekarang: " + (readiness?.test_status || "belum ada") + ".");
-        if (eligibleCount < 1) throw new Error("Tidak ada nomor baru yang berizin untuk Blash ini. Nomor yang pernah di-Blash otomatis dilewati; nomor lain harus memiliki izin promosi yang tercatat.");
+        if (eligibleCount < 1) throw new Error("Tidak ada kontak baru yang memiliki nomor WhatsApp. Nomor yang pernah di-Blash otomatis dilewati.");
       }
       if (action === "SCHEDULE") {
         if (!schedule) throw new Error("Pilih tanggal dan jam WIB dahulu.");
@@ -141,18 +140,18 @@ function Detail({
         <>
           <div className="blashNextStep section" role="status">
             <strong>{testReady ? "Percobaan diterima pengirim" : testPending ? "Mengirim pesan percobaan…" : "Draft tersimpan. Coba pesannya dahulu."}</strong>
-            <p>{testReady ? "Cek hasilnya di WhatsApp, lalu pilih waktu pengiriman di bawah." : testPending ? "Status diperbarui otomatis setiap beberapa detik." : "Masukkan nomor WhatsApp milikmu. Hanya nomor itu yang menerima percobaan."}</p>
+            <p>{testReady ? "Percobaan berhasil, tetapi percobaan pribadi bersifat opsional." : testPending ? "Status diperbarui otomatis setiap beberapa detik." : "Percobaan pribadi opsional. Kamu bisa langsung mengirim ke kontak yang memiliki nomor WhatsApp."}</p>
           </div>
           <details className="campaignReadiness section">
             <summary>Periksa kesiapan pengiriman</summary>
             <div className="campaignReadinessGrid">
-              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} penerima berizin dan belum pernah di-Blash</span>
+              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} kontak bernomor WhatsApp dan belum pernah di-Blash</span>
               <span className={alreadyBlasted ? "blocked" : "ready"}>{alreadyBlasted} nomor sudah tercatat dalam Blash lain dan otomatis dilewati</span>
-              <span className={testReady ? "ready" : "blocked"}>2. {testReady ? "Uji diterima gateway" : "Uji pengiriman belum berhasil"}</span>
+              <span className={testReady ? "ready" : "blocked"}>2. Percobaan pribadi opsional</span>
                <span className={aiReplyReady?"ready":"blocked"}>{c.bot_enabled?(aiReplyReady?"AI balasan otomatis sudah diaktifkan":"AI balasan belum aktif; nyalakan Bot dan Auto Reply terlebih dahulu"):"AI balasan untuk Blash ini dimatikan"}</span>
               <span className={readiness?.has_image && !readiness?.image_supported ? "blocked" : "ready"}>3. {readiness?.has_image ? (readiness?.image_supported ? "Pengirim gambar WAHA siap diuji" : "Pengirim gambar di n8n belum diperbarui") : readiness?.has_video ? "Video harus diuji" : "Pesan teks siap diuji"}</span>
             </div>
-            {eligibleCount === 0 && <p className="muted">Tidak ada penerima baru yang berizin. Nomor yang pernah masuk Blash lain tidak akan dikirimi ulang; izin promosi tetap wajib untuk nomor baru.</p>}
+            {eligibleCount === 0 && <p className="muted">Tidak ada nomor WhatsApp baru yang dapat dikirimi. Nomor yang pernah masuk Blash lain tetap dilewati untuk mencegah duplikasi.</p>}
             {readiness?.has_image && !readiness?.image_supported && <p className="muted">Sambungan pengirim gambar belum siap. <Link href="/integrations">Periksa koneksi →</Link></p>}
             <button type="button" className="btn" onClick={()=>void refresh()} disabled={busy}>Perbarui status</button>
           </details>
@@ -181,8 +180,8 @@ function Detail({
           </div>
           <div className="campaignTestPanel section">
             <strong>2. Kirim ke pelanggan</strong>
-            <p className="muted">{eligibleCount} penerima berizin · {testReady ? "Percobaan selesai" : "Selesaikan percobaan dahulu"}</p>
-            {eligibleCount===0&&<Link href="/contacts">Lengkapi izin penerima di Kontak →</Link>}
+            <p className="muted">{eligibleCount} kontak memiliki nomor WhatsApp · percobaan pribadi opsional</p>
+            {eligibleCount===0&&<Link href="/contacts">Tambahkan nomor WhatsApp di Kontak →</Link>}
             <div className="blashSendMode" role="group" aria-label="Waktu pengiriman">
               <button className={"btn "+(sendMode==="NOW"?"primary":"")} aria-pressed={sendMode==="NOW"} onClick={()=>setSendMode("NOW")}>Kirim sekarang</button>
               <button className={"btn "+(sendMode==="LATER"?"primary":"")} aria-pressed={sendMode==="LATER"} onClick={()=>setSendMode("LATER")}>Jadwalkan</button>
@@ -199,7 +198,7 @@ function Detail({
             </label>}
             <button
               className="btn primary"
-              disabled={busy || !testReady || eligibleCount<1 || !readiness?.worker_online || !aiReplyReady || (sendMode==="LATER"&&!schedule)}
+              disabled={busy || eligibleCount<1 || !readiness?.worker_online || !aiReplyReady || (sendMode==="LATER"&&!schedule)}
               onClick={() => { setActionError(""); setNotice(""); setConfirm(sendMode==="LATER" ? "SCHEDULE" : "START"); }}
             >
               {sendMode==="LATER" ? "Simpan jadwal pengiriman" : "Kirim ke "+eligibleCount+" penerima"}
@@ -213,9 +212,9 @@ function Detail({
             {confirm === "CANCEL"
               ? "Batalkan sisa pengiriman?"
               : confirm === "SCHEDULE" ? "Jadwalkan Blash untuk " + new Date(schedule + ":00+07:00").toLocaleString("id-ID", {timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"}) + " WIB?"
-              : "Mulai Blash untuk " + eligibleCount + " nomor baru yang berizin?"}
+              : "Mulai Blash untuk " + eligibleCount + " kontak bernomor WhatsApp?"}
           </b>
-          <p>Server akan memeriksa izin promosi, hasil uji, dan kesiapan worker. Pesan yang sudah dikirim tidak dapat ditarik kembali.</p>
+          <p>Server akan memeriksa nomor WhatsApp, pengecualian owner, duplikasi, dan kesiapan worker. Pesan yang sudah dikirim tidak dapat ditarik kembali.</p>
           {actionError && <div className="notice errorNotice campaignInlineError" role="alert"><strong>Tidak dapat melanjutkan:</strong> {actionError}</div>}
           <div className="actions">
             <button
