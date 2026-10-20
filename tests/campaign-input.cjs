@@ -86,13 +86,19 @@ test("Blash reply context and campaign AI gate handle both phone and LID identit
  assert.match(migration,/if v_bot=false then return null/);
 });
 
-test("contacts import needs batch evidence, not a permission toggle; LID-only contacts are not phone numbers",()=>{
+test("contacts use reversible admin promotion defaults without fabricating customer consent; LID stays unmapped",()=>{
  const contacts=fs.readFileSync("app/contacts/page.tsx","utf8");
- assert.doesNotMatch(contacts,/checked=\{consent\}|setConsent\(/);
- assert.match(contacts,/Bukti persetujuan promo untuk seluruh daftar/);
- assert.match(contacts,/consent:evidence.length>=12/);
+ const api=fs.readFileSync("app/api/campaigns/route.ts","utf8");
+ const migration=fs.readFileSync("database/053_owner_promo_default_on.sql","utf8");
+ assert.doesNotMatch(contacts,/Bukti persetujuan promo untuk seluruh daftar/);
+ assert.match(contacts,/consent:false/);
+ assert.match(contacts,/action:"promo_toggle"/);
  assert.match(contacts,/Nomor WA belum terpetakan/);
  assert.match(contacts,/c.phone && c.consent/);
+ assert.match(contacts,/c.opted_out_at/);
+ assert.match(api,/mc_owner_promo_bulk/);
+ assert.match(migration,/owner_promo_disabled/);
+ assert.match(migration,/NEW.opted_out_at IS NOT NULL/);
 });
 test("explicit opt-in is strict, contact-initiated and preserves identity checks",()=>{
  const migration=fs.readFileSync("database/045_capture_explicit_prime_store_promo_optin.sql","utf8");
