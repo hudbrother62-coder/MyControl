@@ -1,14 +1,12 @@
 import { authorize, apiError } from "@/lib/server/session";
 import { activeChatId, rpc, db } from "@/lib/server/database";
+import { normalizePhone } from "@/lib/campaigns";
 export async function POST(req: Request) {
   try {
     authorize(req, true);
     const b = await req.json();
     if (b.action === "contact") {
-      let phone = String(b.phone || "").replace(/[ +()-]/g, "");
-      if (phone.startsWith("0")) phone = "62" + phone.slice(1);
-      if (!/^[1-9][0-9]{7,14}$/.test(phone))
-        throw new Error("Nomor WhatsApp tidak valid");
+      const phone = normalizePhone(String(b.phone || ""));
       const name = String(b.name || "")
         .trim()
         .slice(0, 100);
@@ -131,21 +129,10 @@ export async function POST(req: Request) {
     }
     if (b.action === "lead") {
       const statuses = [
-        "NEW",
-        "CONTACTED",
-        "INTERESTED",
-        "FOLLOW_UP",
-        "PENDING",
-        "STALE",
-        "CHECKOUT",
-        "AWAITING_PAYMENT",
-        "PAYMENT_SUBMITTED",
-        "PAYMENT_MATCHED",
-        "WAITING_OWNER_APPROVAL",
-        "VERIFIED",
-        "CLOSING",
-        "FULFILLED",
-        "LOST",
+        "NEW", "CONTACTED", "PRODUCT_INTEREST", "INTERESTED",
+        "FOLLOW_UP", "PENDING", "CHECKOUT", "AWAITING_PAYMENT",
+        "PAYMENT_SUBMITTED", "WAITING_OWNER_APPROVAL", "WON",
+        "LOST", "DO_NOT_CONTACT", "HUMAN_HANDOFF",
       ];
       const patch: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -153,9 +140,7 @@ export async function POST(req: Request) {
       if (b.status !== undefined) {
         if (!statuses.includes(b.status)) throw new Error("Status tidak valid");
         patch.lead_status = b.status;
-        patch.stage = ["CLOSING", "FULFILLED"].includes(b.status)
-          ? "WON"
-          : b.status;
+        patch.stage = b.status;
       }
       if (b.value !== undefined) {
         if (!Number.isFinite(b.value) || b.value < 0)
