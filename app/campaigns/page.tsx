@@ -21,6 +21,7 @@ function Detail({
     [schedule, setSchedule] = useState(""),
     [sendMode, setSendMode] = useState<"NOW"|"LATER">("NOW"),
     [testPhone, setTestPhone] = useState(""),
+    [permissionSource,setPermissionSource] = useState(""),
     [confirm, setConfirm] = useState("");
   const c = data?.campaign;
   const readiness = data?.readiness;
@@ -44,7 +45,7 @@ function Detail({
         if (!readiness?.worker_online) throw new Error("Pengirim belum terhubung. Buka Integrasi untuk memeriksa koneksi.");
          // AI Auto Reply is independent of direct campaign sending.
         if (readiness?.has_image && !readiness?.image_supported) throw new Error("Pengirim gambar belum siap. Periksa koneksi di Integrasi.");
-        if (eligibleCount < 1) throw new Error("Tidak ada kontak baru yang memiliki nomor WhatsApp. Nomor yang pernah di-Blash otomatis dilewati.");
+        if (eligibleCount < 1) throw new Error("Belum ada penerima berizin yang siap. Jika daftar sudah menyetujui promosi, catat sumber izinnya satu kali di atas tombol Kirim.");
       }
       if (action === "SCHEDULE") {
         if (!schedule) throw new Error("Pilih tanggal dan jam WIB dahulu.");
@@ -66,6 +67,18 @@ function Detail({
     } finally {
       setBusy(false);
     }
+  }
+  async function recordPermission() {
+    if(busy)return;
+    setBusy(true);setActionError("");setNotice("");
+    try{
+      const result=await campaignRequest({action:"record_permission",id,source:permissionSource.trim()});
+      setPermissionSource("");
+      setNotice((result?.recorded??0)+" nomor impor telah diperbarui dari sumber izin yang kamu konfirmasi. Tidak ada pesan yang dikirim.");
+      await refresh();
+      onChange();
+    }catch(e){setActionError((e as Error).message||"Gagal mencatat sumber izin");}
+    finally{setBusy(false);}
   }
   async function test() {
     if (busy) return;
@@ -178,9 +191,22 @@ function Detail({
             </div>
             <p className="muted" role="status">Status: {testReady ? "Diterima pengirim; cek hasilnya di WhatsApp" : testPending ? "Sedang diproses" : ["FAILED","UNKNOWN"].includes(readiness?.test_status) ? "Belum berhasil. Periksa koneksi sebelum mencoba lagi." : "Belum dicoba"}</p>
           </div>
+          {readiness?.staged_total>0&&<div className="campaignTestPanel section">
+            <strong>Daftar nomor baru: konfirmasi izin sekaligus</strong>
+            <p className="muted">Jika nomor pada daftar ini memang sudah menyetujui promosi, cukup catat satu sumber persetujuan untuk seluruh nomor baru. Tidak perlu membuka menu Kontak atau mengubahnya satu per satu. Nomor yang sudah berhenti promosi tetap dilewati.</p>
+            <label className="fieldLabel">Sumber persetujuan pelanggan
+              <input className="input" maxLength={500} value={permissionSource}
+                onChange={e=>setPermissionSource(e.target.value)}
+                placeholder="Contoh: Form pendaftaran pelanggan Oktober 2026" />
+            </label>
+            <button type="button" className="btn" disabled={busy||permissionSource.trim().length<12}
+               onClick={()=>void recordPermission()}>
+              Catat sumber izin untuk seluruh daftar
+            </button>
+          </div>}
           <div className="campaignTestPanel section">
             <strong>Kirim langsung ke nomor yang ditambahkan di Blash</strong>
-            <p className="muted">{eligibleCount} nomor siap dikirim dari daftar Blash ini. Nomor baru tidak perlu disimpan dahulu di menu Kontak; nomor yang sudah pernah di-Blash dan opt-out tetap dilewati.</p>
+            <p className="muted">{eligibleCount} nomor berizin siap diproses dari daftar Blash ini. Tidak perlu masuk menu Kontak. Nomor yang sudah pernah di-Blash dan opt-out tetap dilewati.</p>
             {eligibleCount===0&&<p className="notice">Belum ada penerima baru yang memenuhi syarat dalam draft ini. Buat Blash baru, lalu masukkan nomor melalui Excel, tempel massal, atau ketik langsung di bagian Penerima. Tidak perlu membuka menu Kontak.</p>}
             <div className="blashSendMode" role="group" aria-label="Waktu pengiriman">
               <button className={"btn "+(sendMode==="NOW"?"primary":"")} aria-pressed={sendMode==="NOW"} onClick={()=>setSendMode("NOW")}>Kirim sekarang</button>
