@@ -1520,3 +1520,18 @@ body.dark .taskRowIcon { background:var(--soft); }
  .campaignTestPanel .campaignToolbar .btn{width:100%;flex:none}
  .campaignPosterPreview{max-height:290px}
 }
+
+/* My Control visual identity: red-and-black command emblem. */
+.sidebar .brandMark {
+  overflow: hidden;
+  background: #080407;
+  border: 1px solid rgba(248, 53, 73, .26);
+  border-radius: 12px;
+  padding: 0;
+}
+.sidebar .brandMark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
