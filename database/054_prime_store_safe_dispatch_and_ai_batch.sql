@@ -58,8 +58,7 @@ BEGIN
   e.chat_id,(SELECT string_agg(b.message_text,E'\n' ORDER BY b.received_at,b.id) FROM mc_inbound_events b WHERE b.id=ANY(ids)),
   e.external_message_id,e.payload||jsonb_build_object('batch_count',cardinality(ids),'account_id',e.account_id)
  FROM mc_ai_jobs j JOIN mc_inbound_events e ON e.id=j.inbound_event_id WHERE j.id=chosen;
-END $function$
-
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.mc_claim_ai_jobs_batch(
  p_worker text DEFAULT 'n8n', p_limit integer DEFAULT 4
