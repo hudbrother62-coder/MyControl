@@ -1,7 +1,10 @@
 import "./globals.css";
+import "./theme.css";
 import AuthGate from "@/components/AuthGate";
 import Shell from "@/components/Shell";
 import { StoreProvider } from "@/components/Store";
+
+export const viewport = { themeColor: "#09090e" };
 
 export const metadata = {
   title: "My Control — Bantu Beres",

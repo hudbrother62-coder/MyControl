@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import {
   ArrowRight, ArrowUpRight, BarChart3, CheckCircle2, CircleHelp,
   Clock3, CreditCard, Headphones, MessageSquareText, PackageCheck,
@@ -46,7 +47,7 @@ export default function Page() {
         </div>
         <div className="heroVisual" aria-hidden="true">
           <div className="heroVisualRing ringOne"/><div className="heroVisualRing ringTwo"/>
-          <div className="heroVisualCenter"><MessageSquareText size={34} strokeWidth={1.5} /></div>
+          <div className="heroVisualCenter"><Logo /></div>
           <div className="heroVisualChip chipTop"><span className="chipIndicator green" /> CUSTOMER CARE</div>
           <div className="heroVisualChip chipBottom"><BarChart3 size={15} /> OPERATIONS</div>
           <div className="heroVisualSpark">✦</div>

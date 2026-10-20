@@ -56,9 +56,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    const value = localStorage.getItem("bb-theme") === "dark";
+    const value = localStorage.getItem("bb-theme") !== "light";
     setDark(value);
     document.body.classList.toggle("dark", value);
+    document.body.classList.toggle("theme-light", !value);
   }, []);
   useEffect(() => {
     let alive = true;
@@ -97,6 +98,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     const value = !dark;
     setDark(value);
     document.body.classList.toggle("dark", value);
+    document.body.classList.toggle("theme-light", !value);
     localStorage.setItem("bb-theme", value ? "dark" : "light");
   }
   return (
