@@ -5,7 +5,7 @@ import {CampaignStep,campaignRequest,normalizePhone,validateSteps} from "@/lib/c
 import {useCampaignData} from "./useCampaignData";
 type ImportContact={phone:string;name:string;tags:string;consent:boolean;consent_evidence:string};
 type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;consent?:boolean;opted_out_at?:string|null;exclusion?:string|null};
-type RecipientSource="existing"|"excel"|"manual";
+type RecipientSource="paste"|"existing"|"excel"|"manual";
 type ManualRow={id:number;name:string;phone:string;tags:string;consent:boolean;consent_evidence:string};
 const newManualRow=(id:number):ManualRow=>({id,name:"",phone:"",tags:"",consent:false,consent_evidence:""});
 function csvRows(raw:string){
@@ -28,14 +28,14 @@ function parseImportedRows(rows:string[][]){
  const name=find(["nama","name"]),phone=find(["nomor","phone","whatsapp","no_wa","nomor_wa","no_whatsapp"]),
   tags=find(["label","tags","kategori"]),permission=find(["izin_promosi","consent","izin","persetujuan_promosi"]),
   evidence=find(["bukti_izin","consent_evidence","bukti_persetujuan","sumber_izin"]);
- if(name<0||phone<0)throw new Error("Kolom Excel wajib: nama dan nomor");
+ if(phone<0)throw new Error("Excel membutuhkan kolom nomor/phone/WhatsApp. Nama boleh kosong.");
  const seen=new Set<string>();const contacts:ImportContact[]=[];const errors:string[]=[];
  let duplicates=0;
  for(const [index,r]of rows.entries()){
   if(!r.some(x=>x?.trim()))continue;
   try{
    const number=normalizePhone(r[phone]||"");
-   const display=(r[name]||"").trim();
+   const display=(name>=0?(r[name]||""):"").trim()||("Pelanggan "+number.slice(-4));
    if(!display||display.length>100)throw new Error("Nama harus 1–100 karakter");
    if(seen.has(number)){duplicates++;continue}
    seen.add(number);
@@ -53,16 +53,45 @@ function parseImportedRows(rows:string[][]){
  if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
  return {contacts,errors,duplicates};
 }
+function parsePastedNumbers(raw:string){
+ const contacts:ImportContact[]=[];const errors:string[]=[];const seen=new Set<string>();let duplicates=0;
+ const rows=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).flatMap(line=>{
+  if(/^(?:nama|name)[,;\t ]+(?:nomor|phone|whatsapp|no_wa)$/i.test(line))return [];
+  const parts=line.split(/[,;\t]+/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length>1&&parts.every(x=>{try{normalizePhone(x);return true}catch{return false}}))return parts;
+  const words=line.split(/\s+/).filter(Boolean);
+  if(words.length>1&&words.every(x=>{try{normalizePhone(x);return true}catch{return false}}))return words;
+  return [line];
+ });
+ for(const [index,row] of rows.entries()){
+  const match=row.match(/(?:\+?62|0|8)[0-9 ().-]{7,22}/g)?.at(-1);
+  if(!match){errors.push("Baris "+(index+1)+": nomor tidak ditemukan");continue}
+  try{
+   const phone=normalizePhone(match.trim());
+   if(seen.has(phone)){duplicates++;continue}
+   seen.add(phone);
+   const name=row.replace(match,"").replace(/^[\s,;|:\t-]+|[\s,;|:\t-]+$/g,"").trim().slice(0,100)||("Pelanggan "+phone.slice(-4));
+   contacts.push({phone,name,tags:"",consent:false,consent_evidence:""});
+   if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
+  }catch(e){
+   if((e as Error).message.includes("Maksimal"))throw e;
+   errors.push("Baris "+(index+1)+": "+(e as Error).message);
+  }
+ }
+ return {contacts,errors,duplicates};
+}
 export default function CampaignEditor({products,onDone,onClose,videoSupported,imageSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean;imageSupported?:boolean}){
- const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<RecipientSource>("existing");
+ const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<RecipientSource>("paste");
  const {data,error:loadError,loading}=useCampaignData("?view=contacts&q="+encodeURIComponent(search)+"&offset="+offset);
- const [name,setName]=useState(""),[product,setProduct]=useState(""),[selected,setSelected]=useState<string[]>([]);
+ const [name,setName]=useState(""),[product,setProduct]=useState(()=>products.find(p=>p.source_key==="SP001")?.source_key||products[0]?.source_key||""),[selected,setSelected]=useState<string[]>([]);
  const [excluded,setExcluded]=useState<string[]>([]),[imported,setImported]=useState<ImportContact[]>([]),[importNotice,setImportNotice]=useState("");
  const [manualRows,setManualRows]=useState<ManualRow[]>(()=>Array.from({length:5},(_,i)=>newManualRow(i)));
  const nextManualId=useRef(5);
  const [manualContacts,setManualContacts]=useState<ImportContact[]>([]);
  const [manualNotice,setManualNotice]=useState("");
- const [steps,setSteps]=useState<CampaignStep[]>([{type:"IMAGE",body:""}]);
+ const [pasted,setPasted]=useState("");const pastedResult=useMemo(()=>parsePastedNumbers(pasted),[pasted]);
+ const [savedDraft,setSavedDraft]=useState("");
+ const [steps,setSteps]=useState<CampaignStep[]>([{type:"TEXT",body:""}]);
  const [bot,setBot]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [mediaNames,setMediaNames]=useState<Record<number,string>>({}),[mediaPreviews,setMediaPreviews]=useState<Record<number,string>>({});
  const objectUrls=useRef<string[]>([]);
@@ -75,8 +104,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   const unique=new Map<string,ImportContact>();
   for(const contact of imported)unique.set(contact.phone,contact);
   for(const contact of manualContacts)unique.set(contact.phone,contact);
+  for(const contact of pastedResult.contacts)unique.set(contact.phone,contact);
   return Array.from(unique.values());
- },[imported,manualContacts]);
+ },[imported,manualContacts,pastedResult]);
  const excelRows=useMemo(()=>imported.filter(c=>(c.name+" "+c.phone+" "+c.tags).toLowerCase().includes(search.toLowerCase())),[imported,search]);
  const manualVisible=useMemo(()=>manualContacts.filter(c=>(c.name+" "+c.phone+" "+c.tags).toLowerCase().includes(search.toLowerCase())),[manualContacts,search]);
  const visible=recipientSource==="existing"?known:recipientSource==="excel"?excelRows:manualVisible;
@@ -84,7 +114,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const importedSelected=allImported.filter(c=>selected.includes(c.phone));
  const blockedKnown=new Set(known.filter(c=>c.opted_out_at||c.exclusion).map(c=>c.phone));
  const pendingManual=manualRows.flatMap(row=>{try{if(!row.name.trim()||!row.phone.trim())return [];return [{phone:normalizePhone(row.phone),consent:false}]}catch{return []}});
- const preparedPhones=Array.from(new Set([...selected,...pendingManual.map(row=>row.phone)]));
+ const preparedPhones=Array.from(new Set([...selected,...pendingManual.map(row=>row.phone),...pastedResult.contacts.map(c=>c.phone)]));
  const locallyApproved=new Set([...known.map(c=>c.phone),...allImported.map(c=>c.phone)].filter((phone):phone is string=>!!phone&&!blockedKnown.has(phone)));
  const eligibleVisible=selected.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&locallyApproved.has(phone)).length;
  const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone))).length;
@@ -213,14 +243,14 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    edit(i,{type,media_url:d.path});setError("");
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}
  }
- async function save(){
+ async function save(mode:"NOW"|"DRAFT"){
   if(busy)return;
   setBusy(true);setError("");
   try{
    if(!product)throw new Error("Pilih produk di bagian 1 terlebih dahulu.");
-   // Read unsaved manual rows as part of Save: users need not click a separate Add button.
-   const pending=readManualRows();
-   const selectedPhones=Array.from(new Set([...selected,...pending.map(c=>c.phone)]));
+   // Blash-only targets: no need to register numbers through Contacts.
+   const pending=recipientSource==="manual"?readManualRows():[];
+   const selectedPhones=Array.from(new Set([...selected,...pending.map(c=>c.phone),...pastedResult.contacts.map(c=>c.phone)]));
    if(!selectedPhones.length)throw new Error("Tambahkan kontak manual atau pilih minimal satu penerima");
    if(selectedPhones.length>1000)throw new Error("Maksimal 1.000 penerima per Blash");
    const imports=new Map(allImported.map(c=>[c.phone,c]));
@@ -229,15 +259,20 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
    const campaignName=name.trim()||("Promosi "+(products.find(p=>p.source_key===product)?.payload?.product_name||product)).slice(0,120);
-   const r=await campaignRequest({action:"create",campaign:{name:campaignName,product_id:product,phones:selectedPhones,
-    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:bot}});
-   onDone(r.id);
+   const draftId=savedDraft||((await campaignRequest({action:"create",campaign:{name:campaignName,product_id:product,phones:selectedPhones,
+    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:false}})).id as string);
+   setSavedDraft(draftId);
+   if(mode==="NOW"){
+    try{await campaignRequest({action:"START",id:draftId})}
+    catch(e){throw new Error("Draft tersimpan, tetapi pengiriman belum dimulai: "+(e as Error).message)}
+   }
+   onDone(draftId);
   }catch(e){setError((e as Error).message);if((e as Error).message.includes("Kontak manual"))setRecipientSource("manual")}
   finally{setBusy(false)}
  }
  return <section className="card campaignEditor onePageCampaign">
   <div className="sectionTitle"><div><h2>Buat Blash</h2>
-   <p className="muted">Isi di sini → simpan → kirim atau jadwalkan (tes pribadi opsional).</p>
+   <p className="muted">Tempel nomor / impor Excel → isi pesan → kirim. Tidak perlu menu Kontak.</p>
   </div><button className="btn" type="button" onClick={onClose}>Tutup</button></div>
   <nav className="blashJumpLinks" aria-label="Bagian pengisian Blash">
    <a href="#blash-product">1. Produk</a><a href="#blash-recipients">2. Penerima</a>
@@ -255,9 +290,29 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     </div>
     <details className="blashExtra"><summary>Atur pengetahuan produk untuk AI</summary><Link href="/campaigns/intelligence">Buka materi promosi →</Link></details>
    </section>
-   <section id="blash-recipients" className="oneCampaignBlock"><h3>2. Pilih penerima</h3>
+   <section id="blash-recipients" className="oneCampaignBlock"><h3>2. Nomor tujuan</h3>
+    <div className="campaignImportPanel">
+     <label className="fieldLabel"><b>Tempel nomor WhatsApp</b>
+      <textarea className="input" rows={6} value={pasted}
+       onChange={e=>{setPasted(e.target.value);setRecipientSource("paste");}}
+       placeholder={"081234567890\\n082345678901\\n6281234567890\\nNama Sekolah, 081234567890"}
+       aria-label="Tempel daftar nomor WhatsApp untuk Blash" />
+     </label>
+     <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
+     <label className="fieldLabel"><b>Atau unggah Excel / CSV</b>
+      <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
+       onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
+     <div className="actions"><button className="btn" type="button" onClick={()=>void template()}>Template Excel</button>
+      <span className="muted">{pastedResult.contacts.length} nomor tempel · {imported.length} nomor Excel · {pastedResult.duplicates} duplikat</span></div>
+     {pastedResult.errors.length>0&&<p className="notice" role="alert">{pastedResult.errors.length} baris dilewati: {pastedResult.errors.slice(0,3).join("; ")}</p>}
+     {importNotice&&<p className="notice" role="status">{importNotice}</p>}
+    </div>
+    <details className="blashExtra">
+    <summary>Cara lain: pilih Kontak lama atau ketik satu-satu</summary>
     <div className="campaignSourceHeader">
      <div className="campaignSourceTabs" role="group" aria-label="Sumber penerima">
+      <button type="button" aria-pressed={recipientSource==="paste"} className={"btn "+(recipientSource==="paste"?"primary":"")}
+       onClick={()=>setRecipientSource("paste")}>Tempel nomor</button>
       <button type="button" aria-pressed={recipientSource==="existing"} className={"btn "+(recipientSource==="existing"?"primary":"")}
        onClick={()=>setRecipientSource("existing")}>Kontak tersimpan ({data?.total??0})</button>
       <button type="button" aria-pressed={recipientSource==="excel"} className={"btn "+(recipientSource==="excel"?"primary":"")}
@@ -267,6 +322,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </div>
      <Link className="btn campaignManageContact" href="/contacts">Menu kontak →</Link>
     </div>
+    </details>
     {recipientSource==="excel"&&<div className="campaignImportPanel">
       <div className="sectionTitle"><div><b>Excel/CSV khusus Blash</b>
        <p className="muted">Tidak langsung masuk Kontak Utama. Nomor baru akan muncul setelah pesan diterima gateway atau ada interaksi masuk.</p>
@@ -304,6 +360,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
 
       <p className="muted">Kontak baru siap dipilih tanpa proses izin satu per satu. Nomor invalid dan opt-out tetap diblokir.</p>
     </div>}
+    {recipientSource!=="paste"&&<>
     <div className="campaignToolbar campaignRecipientToolbar section">
      <input className="input" aria-label="Cari penerima" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0)}}
       placeholder="Cari nama, nomor, label..."/>
@@ -358,7 +415,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       {selected.length>100&&<p className="muted">Ditampilkan 100 dari {selected.length} kontak. Gunakan pencarian dan pilihan untuk mengelola seluruh daftar.</p>}
      </div>
     </details>}
-    <details className="blashExtra"><summary>Kontak yang dilewati</summary><p>Nomor invalid, LID tanpa nomor, opt-out, pengecualian owner, dan kontak yang sudah pernah di-Blash tidak akan dikirim ulang. <Link href="/contacts">Kelola kontak →</Link></p></details>
+    </>}
+    <p className="muted">Nomor invalid, LID, opt-out, pengecualian, dan nomor yang sudah pernah di-Blash tetap dilewati otomatis.</p>
    </section>
    <section id="blash-message" className="oneCampaignBlock"><h3>3. Apa yang ingin dikirim?</h3><p className="muted">Pilih poster, teks, atau video. Link YouTube cukup ditempel di kolom pesan.</p>
     <div className="campaignCompose">
@@ -405,8 +463,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     </div>
    </section>
    <section id="blash-review" className="oneCampaignBlock"><h3>4. Periksa dan simpan</h3>
-    <label className="checkLine"><input type="checkbox" checked={bot} onChange={e=>setBot(e.target.checked)}/>
-     <span><b>AI membantu membalas pelanggan</b><small>AI menanggapi balasan setelah Blash dengan konteks produk, jika bot dan worker aktif.</small></span></label>
+    <p className="muted">AI Auto Reply nonaktif untuk Blash ini; balasan pelanggan tetap masuk Inbox.</p>
     <div className="campaignReview">
      <div><small>Produk</small><b>{products.find(p=>p.source_key===product)?.payload?.product_name||"Belum dipilih"}</b></div>
      <div><small>Penerima disiapkan</small><b>{preparedPhones.length}</b></div>
@@ -417,8 +474,10 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    </section>
   </div>
   <div ref={feedback} tabIndex={-1}>{(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}</div>
-  <div className="actions section"><button className="btn primary" disabled={busy}
-   onClick={()=>void save()}>{busy?"Memproses…":"Simpan & lanjut kirim"}</button>
+  <div className="actions section"><button className="btn primary" disabled={busy||preparedEligible===0}
+   onClick={()=>void save("NOW")}>{busy?"Memproses…":"Kirim sekarang ("+preparedEligible+" nomor)"}</button>
+   <button className="btn" disabled={busy} onClick={()=>void save("DRAFT")}>Simpan draft / jadwalkan</button>
+   {savedDraft&&<button className="btn" type="button" onClick={()=>onDone(savedDraft)}>Buka draft tersimpan</button>
    <button className="btn" onClick={onClose}>Batal</button></div>
  </section>;
 }
