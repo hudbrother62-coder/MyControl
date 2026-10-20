@@ -10,8 +10,9 @@ export async function GET(req: Request) {
         "mc_error_log?select=id,component,category,error_message,created_at&order=created_at.desc&limit=20",
       ),
       db(
-        "mc_outbound_jobs?select=id,chat_id,kind,status,last_error,created_at&status=in.(FAILED,UNKNOWN)&order=created_at.desc&limit=30",
+        "mc_outbound_jobs?select=id,chat_id,kind,status,last_error,created_at&status=in.(FAILED,UNKNOWN,RETRY,PROCESSING)&order=created_at.desc&limit=30",
       ),
+      rpc("mc_queue_metrics"),
     ]);
     return Response.json(
       { ...config, workers, errors, queue, metrics },
