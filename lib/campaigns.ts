@@ -11,12 +11,18 @@ export type CampaignStep = {
   media_url?: string;
 };
 export function normalizePhone(value: string) {
-  let phone = String(value)
-    .trim()
-    .replace(/[\s+().-]/g, "");
+  const raw = String(value ?? "").trim();
+  // A WAHA LID is a technical identifier, never a destination phone number.
+  // Chat addresses must be resolved to a verified phone separately.
+  if (/@(?:lid|c\.us|s\.whatsapp\.net)$/i.test(raw))
+    throw new Error("INVALID_PHONE: ID WhatsApp/LID bukan nomor telepon untuk Blash");
+  if (/@|[a-z]/i.test(raw))
+    throw new Error("INVALID_PHONE: gunakan nomor telepon, bukan ID WhatsApp");
+  let phone = raw.replace(/[\s+().-]/g, "");
   if (/^8\d{8,12}$/.test(phone)) phone = "62" + phone;
-  if (phone.startsWith("0")) phone = "62" + phone.slice(1);
-  if (!/^[1-9][0-9]{7,14}$/.test(phone)) throw new Error("Nomor tidak valid");
+  else if (phone.startsWith("0")) phone = "62" + phone.slice(1);
+  if (!/^[1-9][0-9]{7,14}$/.test(phone))
+    throw new Error("INVALID_PHONE: nomor harus 8–15 digit internasional");
   return phone;
 }
 export function parseContacts(raw: string) {
