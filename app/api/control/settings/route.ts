@@ -3,7 +3,7 @@ import { db, rpc } from "@/lib/server/database";
 export async function GET(req: Request) {
   try {
     authorize(req);
-    const [config, workers, errors, queue] = await Promise.all([
+    const [config, workers, errors, queue, metrics] = await Promise.all([
       rpc("mc_read_web_controls"),
       db("mc_worker_controls?select=*&order=last_seen.desc"),
       db(
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
       ),
     ]);
     return Response.json(
-      { ...config, workers, errors, queue },
+      { ...config, workers, errors, queue, metrics },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (e) {
