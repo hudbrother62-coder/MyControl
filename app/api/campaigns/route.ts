@@ -107,6 +107,14 @@ export async function POST(req: Request) {
         await rpc("mc_campaign_contact_import", { p_contacts: contacts }),
       );
     }
+    if (b.action === "record_permission") {
+      const evidence=String(b.source||"").trim();
+      if(evidence.length<12||evidence.length>500)
+        throw new Error("Tuliskan sumber izin pelanggan 12–500 karakter");
+      return Response.json(await rpc("mc_campaign_record_permission",{
+        p_id:uuid(b.id),p_source:evidence,
+      }));
+    }
     if (b.action === "pause_all") {
       await rpc("mc_campaign_pause_all");
       return Response.json({ ok: true });
