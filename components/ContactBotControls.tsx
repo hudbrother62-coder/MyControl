@@ -56,13 +56,13 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
  const [style,setStyle]=useState(contact.response_style||"CONSULTATIVE"),[profile,setProfile]=useState(contact.customer_profile||"");
  const [instruction,setInstruction]=useState(contact.custom_instruction||""),[lifecycle,setLifecycle]=useState(contact.lifecycle||"PROSPECT");
  const [maxFollowups,setMaxFollowups]=useState(Number(contact.max_followups??3));
- const [note,setNote]=useState(contact.note||""),[permissionEvidence,setPermissionEvidence]=useState("");
+ const [note,setNote]=useState(contact.note||"");
  const [replyWindow,setReplyWindow]=useState(contact.reply_window_enabled||false);
  const [replyStart,setReplyStart]=useState(contact.reply_window_start||"08:00");
  const [replyEnd,setReplyEnd]=useState(contact.reply_window_end||"22:00");
  const [cooldown,setCooldown]=useState(Number(contact.reply_cooldown_seconds??3));
  // Panjang balasan ditentukan AI secara adaptif, bukan batas karakter manual.
- const [confirmedConsent,setConfirmedConsent]=useState(false),[scope,setScope]=useState(contact.exclusion||"NONE");
+ const [scope,setScope]=useState(contact.exclusion||"NONE");
  const [sub,setSub]=useState({...blankSub}),[paymentChecks,setPaymentChecks]=useState<Record<string,boolean>>({});
  const phoneReady=!!c.phone&&/^[1-9][0-9]{7,14}$/.test(c.phone)&&!c.chat_id.endsWith("@lid");
  const paused=contactAiPaused(c.pause_until);
@@ -102,6 +102,18 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
    await load();await onSaved();setNotice("Pengecualian tersimpan. Izin promosi tidak berubah.");
   }catch(e){setError(true);setNotice((e as Error).message)}finally{setBusy(false)}
  }
+ async function togglePromo(enabled:boolean){
+  if(busy||!phoneReady||!c.phone)return;
+  setBusy(true);setError(false);setNotice("");
+  try{
+   const r=await campaignRequest({action:"promo_toggle",all:false,phones:[c.phone],search:"",enabled});
+   if(!r.changed&&!r.already_set)throw new Error("Kontak meminta berhenti atau dikecualikan.");
+   setC(v=>({...v,consent:enabled}));
+   await load();await onSaved();
+   setNotice(enabled?"Promosi diaktifkan.":"Promosi dinonaktifkan. Antrean terkait dibatalkan.");
+  }catch(e){setError(true);setNotice(e instanceof Error?e.message:"Gagal mengubah promosi")}
+  finally{setBusy(false)}
+ }
  function saveSubscription(){
   if(!sub.productId||!sub.planName.trim()||!sub.dueAt||!(Number(sub.amount)>0)){setError(true);setNotice("Isi produk, paket, nominal dan jatuh tempo.");return}
   if(sub.reminderEnabled&&(!sub.serviceOptIn||sub.evidence.trim().length<8)){setError(true);setNotice("Pengingat otomatis membutuhkan bukti persetujuan layanan.");return}
@@ -122,7 +134,7 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
  const effectiveStatus=isBlocked?"Diblokir":c.automation_mode==="MANUAL"?"Admin Manual":paused?"Dijeda":
   c.automation_mode==="HYBRID"?"Hybrid · perlu persetujuan":"AI Otomatis";
  const consent=snapshot?.consent;
- const promoStatus=consent?.opted_out_at?"BERHENTI":consent?.consent?"DIIZINKAN":"BELUM ADA IZIN";
+ const promoStatus=consent?.opted_out_at?"BERHENTI (PELANGGAN)":c.exclusion?"DIKECUALIKAN":consent?.consent?"AKTIF":"NONAKTIF";
  const lifecycleLabels:Record<string,string>={PROSPECT:"Prospek",BUYER:"Pembeli",ACTIVE:"Aktif",DUE_SOON:"Akan jatuh tempo",
  OVERDUE:"Menunggak",CHURNED:"Berhenti"};
  return <div className="contactControlOverlay" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}>
@@ -223,21 +235,18 @@ export default function ContactBotControls({contact,onClose,onSaved}:{contact:Ma
       </section>}
      </>}
     {active==="promosi"&&<>
-      <section className="contactControlSection"><h3><Shield size={17}/> Izin promosi</h3>
-       <div className="contactProKpi"><b>{promoStatus}</b><span>{consent?.source||"Belum ada sumber persetujuan"}</span></div>
-       <p>Kontak terdaftar otomatis, tetapi persetujuan promosi harus dicatat sebelum dikirim. Status berhenti tetap berlaku hingga ada izin baru yang terdokumentasi.</p>
-       {phoneReady?<><label className="fieldLabel">Bukti persetujuan yang diberikan pelanggan
-        <textarea className="input" rows={3} maxLength={500} value={permissionEvidence}
-         onChange={e=>setPermissionEvidence(e.target.value)} placeholder="Misalnya persetujuan dalam formulir tanggal ..., atau pesan WA tanggal ..."/></label>
-        <label className="checkLine"><input type="checkbox" checked={confirmedConsent}
-         onChange={e=>setConfirmedConsent(e.target.checked)}/> Saya memastikan ada persetujuan promosi yang dapat dibuktikan.</label>
-        <div className="actions">
-         <button className="btn primary" disabled={busy||!confirmedConsent||permissionEvidence.trim().length<12}
-          onClick={()=>void mutate({action:"promo_consent",allowed:true,evidence:permissionEvidence},"Izin promosi tersimpan dengan sumber.",
-           ()=>{setC(v=>({...v,consent:true,opted_out_at:null}));setConfirmedConsent(false);setPermissionEvidence("")})}>Catat izin promosi</button>
-         <button className="btn" disabled={busy||!!consent?.opted_out_at} onClick={()=>void mutate({action:"promo_consent",allowed:false,evidence:""},
-          "Promosi dihentikan dan antrean terkait dibatalkan.",()=>setC(v=>({...v,consent:false})))}>Hentikan promosi</button>
-        </div></>:<p>Kontak @lid belum memiliki nomor telepon terverifikasi untuk broadcast. Bot tetap dapat melayani percakapan masuk.</p>}
+      <section className="contactControlSection"><h3><Shield size={17}/> Promosi</h3>
+       <div className="contactProKpi"><b>{promoStatus}</b>
+        <span>Pengaturan admin, bukan bukti persetujuan pelanggan.</span></div>
+       <p>Promosi aktif bawaan untuk kontak baru. Ubah saklar kapan saja; permintaan berhenti tetap berlaku.</p>
+       {phoneReady?
+        <label className="settingRow"><div><b>Promosi aktif</b>
+          <span>{consent?.consent?"Aktif":"Nonaktif"}</span></div>
+          <input type="checkbox" checked={!!consent?.consent&&!consent?.opted_out_at&&!c.exclusion}
+           disabled={busy||!!consent?.opted_out_at||!!c.exclusion}
+           onChange={e=>void togglePromo(e.target.checked)}/>
+        </label>
+        :<p>ID WhatsApp @lid belum terpetakan ke nomor untuk broadcast.</p>}
       </section>
       <section className="contactControlSection"><h3>Pengecualian otomatis</h3>
        {phoneReady?<div className="contactControlActions">

@@ -12,7 +12,6 @@ export default function Contacts() {
     "?view=contacts&offset=" + offset + "&q=" + encodeURIComponent(search),
   );
   const [raw, setRaw] = useState(""),
-    [source, setSource] = useState(""),
     [preview, setPreview] = useState<ReturnType<typeof parseContacts> | null>(
       null,
     ),
@@ -22,8 +21,6 @@ export default function Contacts() {
   const [managedContact, setManagedContact] = useState<any>(null);
   const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
   const [selectAllContacts, setSelectAllContacts] = useState(false);
-  const [bulkEvidence, setBulkEvidence] = useState("");
-  const [bulkConfirmed, setBulkConfirmed] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const contacts = data?.contacts || [];
   const eligible = useMemo(
@@ -54,34 +51,21 @@ export default function Contacts() {
     setSelectedPhones((prev) => prev.includes(phone)
       ? prev.filter((p) => p !== phone) : [...prev, phone]);
   }
-  async function allowBulkPromotions() {
-    if (bulkBusy || (!selectAllContacts && selectedPhones.length === 0) ||
-        !bulkConfirmed || bulkEvidence.trim().length < 12) return;
-    setBulkBusy(true);
-    setNotice("");
+  async function changePromotion(enabled: boolean, phone?: string) {
+    if (bulkBusy || (!phone && !selectAllContacts && !selectedPhones.length)) return;
+    setBulkBusy(true);setNotice("");
     try {
-      const result = await campaignRequest({
-        action: "bulk_consent",
-        all: selectAllContacts,
-        search: selectAllContacts ? search : "",
-        phones: selectAllContacts ? [] : selectedPhones,
-        evidence: bulkEvidence.trim(),
+      const r = await campaignRequest({
+        action:"promo_toggle",enabled,
+        all:phone ? false : selectAllContacts,
+        search:phone || !selectAllContacts ? "" : search,
+        phones:phone ? [phone] : selectAllContacts ? [] : selectedPhones,
       });
-      setNotice(
-        `Izin promosi diperbarui untuk ${result.updated} kontak. ` +
-        `${result.already_allowed} sudah berizin; ${result.skipped} dilewati ` +
-        "(berhenti promosi, dikecualikan, atau belum memenuhi syarat).",
-      );
-      setSelectedPhones([]);
-      setSelectAllContacts(false);
-      setBulkEvidence("");
-      setBulkConfirmed(false);
+      setNotice(`Promosi ${enabled?"diaktifkan":"dinonaktifkan"} pada ${r.changed} kontak. ${r.already_set} sudah sesuai, ${r.skipped} dilewati.`);
+      setSelectedPhones([]);setSelectAllContacts(false);
       await refresh();
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Gagal memperbarui izin promosi.");
-    } finally {
-      setBulkBusy(false);
-    }
+    }catch(e){setNotice(e instanceof Error?e.message:"Gagal mengubah promosi");}
+    finally{setBulkBusy(false);}
   }
   function parse(text = raw) {
     try {
@@ -128,20 +112,15 @@ export default function Contacts() {
     if (!preview?.contacts.length || busy) return;
     setBusy(true);
     try {
-      // A batch-wide proof is used only if the owner actually supplies it.
-      // An empty evidence field imports contacts without manufacturing opt-in.
-      const evidence=source.trim();
-      if(evidence&&evidence.length<12)throw new Error("Bukti persetujuan minimal 12 karakter atau kosongkan jika belum ada izin.");
-      const r = await campaignRequest({
-        action: "import",
-        contacts: preview.contacts.map((c) => ({
-          ...c,source:evidence||"Impor kontak tanpa persetujuan promosi",
-          consent:evidence.length>=12
+      const r=await campaignRequest({
+        action:"import",
+        contacts:preview.contacts.map((c)=>({
+          ...c,source:"Import My Control - pengaturan bawaan",consent:false
         })),
       });
       setNotice(
         r.processed +
-          " kontak tersimpan. Nomor ganda diperbarui tanpa membuka blokir promosi.",
+          " kontak tersimpan. Promosi aktif bawaan kecuali nomor yang telah berhenti atau diblokir.",
       );
       setPreview(null);
       setRaw("");
@@ -169,12 +148,12 @@ export default function Contacts() {
           <strong>{data?.total ?? contacts.length}</strong>
         </div>
         <div className="card">
-          <small>Nomor dengan izin promosi tercatat</small>
+          <small>Kontak dengan promosi aktif</small>
           <strong>{eligible}</strong>
         </div>
         <div className="card">
-          <small>Privasi kontak</small>
-          <p>Permintaan berhenti tetap berlaku saat import ulang.</p>
+          <small>Pengaturan bawaan</small>
+          <p>Promosi aktif untuk kontak baru, kecuali yang meminta berhenti.</p>
         </div>
       </div>
       {show && (
@@ -242,22 +221,12 @@ export default function Contacts() {
                   </div>
                 ))}
               </div>
-              <label className="fieldLabel">
-                Bukti persetujuan promo untuk seluruh daftar (opsional)
-                <input
-                  className="input"
-                  value={source}
-                  onChange={(e) => setSource(e.target.value)}
-                  placeholder="Contoh: formulir persetujuan PRIME STORE, tanggal..."
-                />
-                <small className="muted">Isi sekali jika seluruh kontak dalam file memang telah menyetujui promosi PRIME STORE. Jika kosong, kontak tetap tersimpan tetapi belum berizin promo.</small>
-              </label>
+              <p className="muted">Pengaturan promosi aktif bawaan untuk nomor yang valid. Riwayat berhenti dan blokir tetap dihormati.</p>
               <button
                 className="btn primary"
                 disabled={
                   busy ||
-                  !preview.contacts.length ||
-                  (source.trim().length>0 && source.trim().length<12)
+                  !preview.contacts.length
                 }
                 onClick={() => void save()}
               >
@@ -291,61 +260,33 @@ export default function Contacts() {
           Perbarui
         </button>
       </div>
-      <section className="card section" aria-label="Izin promosi massal">
-        <div className="sectionTitle">
-          <h2>Izin promosi massal</h2>
-          <span className="muted">
-            {selectAllContacts ? "Seluruh kontak yang cocok dengan pencarian" :
-              selectedPhones.length + " kontak dipilih"}
-          </span>
-        </div>
-        <p className="muted">
-          Pilih kotak di samping kontak, atau gunakan Pilih semua kontak untuk
-          mencakup seluruh halaman hasil pencarian. Kontak yang telah berhenti,
-          dikecualikan, atau belum memiliki nomor WhatsApp terverifikasi dilewati.
-        </p>
+      <section className="card section" aria-label="Promosi massal">
+        <div className="sectionTitle"><h2>Atur Promosi</h2><span className="muted">
+          {selectAllContacts?"Semua hasil pencarian dipilih":selectedPhones.length+" kontak dipilih"}
+        </span></div>
+        <p className="muted">Promosi aktif bawaan untuk nomor WhatsApp valid. Kamu bisa mematikan atau mengaktifkan kembali tanpa mengisi formulir. Pelanggan yang meminta berhenti dan ID @lid belum terpetakan tetap dibatasi.</p>
         <div className="actions">
-          <button className="btn" disabled={bulkBusy || selectablePage.length === 0}
-            onClick={togglePage}>
-            {allPageSelected && !selectAllContacts ? "Batalkan pilihan halaman" : "Pilih semua di halaman"}
+          <button className="btn" disabled={bulkBusy||!selectablePage.length} onClick={togglePage}>
+            {allPageSelected&&!selectAllContacts?"Batalkan pilihan halaman":"Pilih semua di halaman"}
           </button>
-          <button className="btn" disabled={bulkBusy || !data?.total}
-            onClick={() => {
-              setSelectAllContacts((value) => !value);
-              setSelectedPhones([]);
-            }}>
-            {selectAllContacts ? "Batalkan pilih semua" : "Pilih semua kontak"}
+          <button className="btn" disabled={bulkBusy||!data?.total}
+            onClick={()=>{setSelectAllContacts(v=>!v);setSelectedPhones([])}}>
+            {selectAllContacts?"Batalkan pilih semua":"Pilih semua kontak"}
           </button>
-          {(selectedPhones.length > 0 || selectAllContacts) &&
-            <button className="btn" disabled={bulkBusy} onClick={() => {
-              setSelectedPhones([]);
-              setSelectAllContacts(false);
-            }}>Bersihkan pilihan</button>}
+          {(selectedPhones.length>0||selectAllContacts)&&
+            <button className="btn" disabled={bulkBusy} onClick={()=>{setSelectedPhones([]);setSelectAllContacts(false)}}>
+              Bersihkan pilihan
+            </button>}
         </div>
-        {(selectedPhones.length > 0 || selectAllContacts) && (
-          <div className="section" style={{ maxWidth: 650 }}>
-            <label className="fieldLabel">
-              Sumber persetujuan promosi
-              <input className="input" value={bulkEvidence} maxLength={500}
-                placeholder="Contoh: formulir persetujuan pelanggan tanggal ..."
-                onChange={(e) => setBulkEvidence(e.target.value)} />
-            </label>
-            <label className="checkLine">
-              <input type="checkbox" checked={bulkConfirmed}
-                onChange={(e) => setBulkConfirmed(e.target.checked)} />
-              Saya memastikan kontak yang dipilih telah memberi izin promosi.
-            </label>
-            <div className="actions">
-              <button className="btn primary" disabled={bulkBusy || !bulkConfirmed ||
-                  bulkEvidence.trim().length < 12}
-                onClick={() => void allowBulkPromotions()}>
-                {bulkBusy ? "Menyimpan izin…" :
-                  selectAllContacts ? "Izinkan promosi semua kontak" :
-                  "Izinkan promosi " + selectedPhones.length + " kontak"}
-              </button>
-            </div>
-          </div>
-        )}
+        {(selectedPhones.length>0||selectAllContacts)&&
+          <div className="actions section">
+            <button className="btn primary" disabled={bulkBusy} onClick={()=>void changePromotion(true)}>
+              {bulkBusy?"Menyimpan…":"Aktifkan promosi"}
+            </button>
+            <button className="btn" disabled={bulkBusy} onClick={()=>void changePromotion(false)}>
+              {bulkBusy?"Menyimpan…":"Nonaktifkan promosi"}
+            </button>
+          </div>}
       </section>
       <div className="card tableWrap section">
         <table className="table">
@@ -389,12 +330,12 @@ export default function Contacts() {
                     }
                   >
                     {c.exclusion ? "Dikecualikan" : c.opted_out_at
-                      ? "Berhenti"
+                      ? "Berhenti (pelanggan)"
                       : !c.phone
                         ? "Nomor WA belum terpetakan"
                         : c.consent
-                          ? "Berizin"
-                          : "Belum ada persetujuan"}
+                          ? "Aktif"
+                          : "Nonaktif"}
                   </span>
                 </td>
                 <td><span className={"badge " + (c.exclusion === "ALL_AUTOMATION" || contactAiPaused(c.pause_until) || c.automation_mode === "MANUAL" ? "warn" : "ok")}>{c.exclusion === "ALL_AUTOMATION" ? "Dikecualikan" : c.automation_mode === "MANUAL" ? "Admin Manual" : contactAiPaused(c.pause_until) ? "AI dijeda" : c.automation_mode === "HYBRID" ? "Hybrid" : "AI diizinkan"}</span></td>
@@ -409,22 +350,11 @@ export default function Contacts() {
                     >
                       Chat
                     </Link>
-                    {c.consent && c.phone && (
-                      <button
-                        className="linkBtn dangerText"
-                        onClick={async () => {
-                          try {
-                            await campaignRequest({
-                              action: "optout",
-                              phone: c.phone,
-                            });
-                            await refresh();
-                          } catch (e) {
-                            setNotice((e as Error).message);
-                          }
-                        }}
-                      >
-                        Hentikan promosi
+                    {c.phone && /^[1-9][0-9]{7,14}$/.test(c.phone) &&
+                      !c.opted_out_at && !c.exclusion && (
+                      <button className={"linkBtn "+(c.consent?"dangerText":"")}
+                        disabled={bulkBusy} onClick={()=>void changePromotion(!c.consent,c.phone)}>
+                        {c.consent?"Matikan promosi":"Aktifkan promosi"}
                       </button>
                     )}
                   </div>
