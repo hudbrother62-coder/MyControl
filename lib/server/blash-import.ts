@@ -47,7 +47,7 @@ export async function readBlashUpload(filename: string, bytes: Uint8Array) {
 
   const workbook = new Workbook();
   try {
-    await workbook.xlsx.load(Buffer.from(bytes));
+    await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   } catch {
     throw new Error("File Excel tidak dapat dibuka. Pastikan file .xlsx tidak rusak.");
   }
