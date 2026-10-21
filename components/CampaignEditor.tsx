@@ -8,20 +8,6 @@ type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;co
 type RecipientSource="paste"|"existing"|"excel"|"manual";
 type ManualRow={id:number;name:string;phone:string;tags:string;consent:boolean;consent_evidence:string};
 const newManualRow=(id:number):ManualRow=>({id,name:"",phone:"",tags:"",consent:false,consent_evidence:""});
-function csvRows(raw:string){
- const first=raw.split(/\r?\n/,1)[0]||"";
- const delimiter=first.includes(";")?";":",";
- const result:string[][]=[];let row:string[]=[];let value="";let quoted=false;
- for(let i=0;i<raw.length;i++){
-  const c=raw[i];if(c==='"'){if(quoted&&raw[i+1]==='"'){value+='"';i++}else quoted=!quoted}
-  else if(c===delimiter&&!quoted){row.push(value);value=""}
-  else if(c==="\n"&&!quoted){row.push(value.replace(/\r$/,""));result.push(row);row=[];value=""}
-  else value+=c;
- }
- if(quoted)throw new Error("Format CSV: tanda kutip belum ditutup");
- if(row.length||value){row.push(value.replace(/\r$/,""));result.push(row)}
- return result;
-}
 function parsePastedNumbers(raw:string){
  const contacts:ImportContact[]=[];const errors:string[]=[];const seen=new Set<string>();let duplicates=0;
  const rows=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).flatMap(line=>{
@@ -157,48 +143,32 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   }catch(e){setError((e as Error).message);setRecipientSource("manual")}
  }
  async function loadExcel(file?:File){
-  if(!file)return;
-  setBusy(true);setError("");setImportNotice("");
-  try{
-   if(file.size>5*1024*1024)throw new Error("Excel/CSV maksimal 5 MB");
-   let rows:string[][];
-   if(/\.xlsx$/i.test(file.name)){
-    const {Workbook}=await import("exceljs");
-    const wb=new Workbook();await wb.xlsx.load(await file.arrayBuffer());
-    const ws=wb.worksheets[0];if(!ws)throw new Error("Tidak ada sheet dalam file");
-    if(ws.rowCount>5000)throw new Error("Maksimal 5.000 baris per file Excel");
-     rows=[];ws.eachRow({includeEmpty:true},row=>{
-     const line:string[]=[];for(let i=1;i<=Math.min(row.cellCount,12);i++){
-      const cell=row.getCell(i);
-      const value=cell.value;
-      line.push(typeof value==="number"&&Number.isSafeInteger(value)?String(value):String(cell.text||""));
-     }
-     rows.push(line);
+   if(!file)return;
+   setBusy(true);setError("");setImportNotice("");
+   try{
+    if(file.size>4*1024*1024)throw new Error("File Excel/CSV maksimal 4 MB");
+    const body=new FormData();
+    body.append("file",file,file.name);
+    const response=await fetch("/api/campaigns/import",{
+     method:"POST",body,credentials:"same-origin",cache:"no-store",
     });
-   }else if(/\.csv$/i.test(file.name))rows=csvRows(await file.text());
-   else throw new Error("Pilih file .xlsx atau .csv");
-   const parsed=parseBlashImportRows(rows);
-   setSelected(previous=>Array.from(new Set([
-    ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
-    ...parsed.contacts.map(contact=>contact.phone),
-   ])).slice(0,1000));
-   setImported(parsed.contacts);
-   setRecipientSource("excel");
-   setImportNotice(parsed.contacts.length+" nomor unik dipilih · "+parsed.duplicates+" duplikat · "+parsed.emptyRows+" baris kosong · "+parsed.errors.length+" baris tidak valid. Nomor baru tidak perlu ada di menu Kontak.");
-   if(parsed.errors.length)setError(parsed.errors.slice(0,5).join("; "));
-  }catch(e){setError((e as Error).message)}finally{setBusy(false)}
- }
- async function template(){
-  const {Workbook}=await import("exceljs");const wb=new Workbook();const sheet=wb.addWorksheet("Calon Penerima");
-  sheet.addRow(["nama","nomor","label","bukti_izin"]);
-  sheet.addRow(["Contoh Pelanggan","081234567890","prospek",""]);
-  sheet.columns=[{width:24},{width:22},{width:22},{width:56}];
-  sheet.getRow(1).font={bold:true};
-  const buf=await wb.xlsx.writeBuffer();
-  const blob=new Blob([new Uint8Array(buf)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="template-penerima-Blash.xlsx";a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
- }
+    const parsed=await response.json();
+    if(!response.ok||parsed.ok===false)throw new Error(parsed.error||"Gagal membaca Excel. Silakan pilih ulang file.");
+    const incoming=parsed.contacts as ImportContact[];
+    if(!Array.isArray(incoming)||incoming.length===0)throw new Error("Tidak ditemukan nomor WhatsApp valid dalam Excel.");
+    setSelected(previous=>Array.from(new Set([
+     ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
+     ...incoming.map(contact=>contact.phone),
+    ])).slice(0,1000));
+    setImported(incoming);
+    setRecipientSource("excel");
+    setImportNotice(file.name+": "+incoming.length+" nomor unik berhasil dibaca dan dipilih · "+
+      parsed.duplicates+" duplikat · "+parsed.emptyRows+" baris kosong · "+
+      parsed.errors.length+" baris dilewati."+
+      (parsed.errors.length?" Contoh masalah: "+parsed.errors.slice(0,2).join("; "):""));
+   }catch(e){setError((e as Error).message||"Impor gagal. Coba unggah ulang file.");}
+   finally{setBusy(false)}
+  }
  async function upload(i:number,file?:File){
   if(!file)return;
   setError("");
@@ -296,10 +266,10 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </label>
      <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
      <label className="fieldLabel"><b>Atau unggah Excel / CSV</b>
-       <small className="muted">File satu kolom berisi nomor saja juga bisa, tanpa header dan tanpa nama. Nomor 08/8/62 otomatis diseragamkan.</small>
+       <small className="muted">Bisa langsung unggah Excel seperti 101 -200.xlsx: cukup nomor WhatsApp di kolom A, tanpa header atau nama. Nomor 08/8/62 otomatis diseragamkan.</small>
       <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
        onChange={e=>{const chosen=e.currentTarget.files?.[0];e.currentTarget.value="";void loadExcel(chosen);}}/></label>
-     <div className="actions"><button className="btn" type="button" onClick={()=>void template()}>Template Excel</button>
+     <div className="actions">
       <span className="muted">{pastedResult.contacts.length} nomor tempel · {imported.length} nomor Excel · {pastedResult.duplicates} duplikat</span></div>
      {pastedResult.errors.length>0&&<p className="notice" role="alert">{pastedResult.errors.length} baris dilewati: {pastedResult.errors.slice(0,3).join("; ")}</p>}
      {importNotice&&<p className="notice" role="status">{importNotice}</p>}
