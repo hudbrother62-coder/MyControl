@@ -78,34 +78,28 @@ export default function Contacts() {
   }
   async function file(f?: File) {
     if (!f) return;
+    setNotice("");
     try {
-      if (f.size > 5_000_000) throw new Error("Maksimal ukuran file 5 MB");
-      let text = "";
-      if (/\.xlsx$/i.test(f.name)) {
-        const { Workbook } = await import("exceljs");
-        const wb = new Workbook();
-        await wb.xlsx.load(await f.arrayBuffer());
-        const sheet = wb.worksheets[0];
-        if (!sheet) throw new Error("Sheet kosong");
-        const lines: string[] = [];
-        sheet.eachRow((row) => {
-          lines.push(
-            [1, 2, 3]
-              .map(
-                (i) =>
-                  '"' +
-                  String(row.getCell(i).text || "").replaceAll('"', '""') +
-                  '"',
-              )
-              .join(","),
-          );
-        });
-        text = lines.join("\n");
-      } else text = await f.text();
-      setRaw(text);
-      parse(text);
+      if (f.size > 4*1024*1024) throw new Error("Maksimal ukuran file 4 MB");
+      const form = new FormData();
+      form.append("file",f,f.name);
+      const response=await fetch("/api/campaigns/import",{
+        method:"POST",body:form,credentials:"same-origin",cache:"no-store"
+      });
+      const data=await response.json();
+      if (!response.ok||data.ok===false) throw new Error(data.error||"Gagal membaca file");
+      setRaw("");
+      setPreview({
+        contacts:data.contacts.map((c:{phone:string;name:string;tags:string})=>({
+          phone:c.phone,name:c.name,tags:c.tags
+        })),
+        duplicates:data.duplicates,
+        errors:data.errors,
+      });
+      setNotice(data.contacts.length+" nomor berhasil dibaca dari "+f.name+".");
     } catch (e) {
-      setNotice((e as Error).message);
+      setPreview(null);
+      setNotice((e as Error).message||"Gagal membaca Excel/CSV");
     }
   }
   async function save() {
@@ -160,17 +154,10 @@ export default function Contacts() {
         <section className="card section">
           <div className="sectionTitle">
             <h2>Import Excel atau CSV</h2>
-            <a
-              className="btn"
-              href="data:text/csv;charset=utf-8,nama%2Cnomor%2Clabel%0AContoh%2C081234567890%2Csekolah"
-              download="template-kontak.csv"
-            >
-              Template CSV
-            </a>
           </div>
           <p className="muted">
-            Urutan kolom Excel: nama, nomor, label. Maksimal 1.000 kontak; nomor
-            disimpan dengan kode negara.
+            Langsung unggah Excel berisi satu kolom A nomor WhatsApp tanpa judul, seperti file 101 -200.xlsx.
+            Nomor 08, 8, atau 62 otomatis diseragamkan; nama boleh kosong.
           </p>
           <label className="fieldLabel">
             Pilih file
@@ -178,7 +165,7 @@ export default function Contacts() {
               className="input"
               type="file"
               accept=".csv,.xlsx"
-              onChange={(e) => void file(e.target.files?.[0])}
+              onChange={(e) => {const chosen=e.currentTarget.files?.[0];e.currentTarget.value="";void file(chosen)}}
             />
           </label>
           <label className="fieldLabel">
