@@ -14,6 +14,6 @@ test("readiness reports skipped numbers and importer supports exact user Excel",
  assert.match(parser,/parseBlashImportRows/);
  assert.match(parser,/"nama", "name"/);
  assert.match(parser,/"nomor", "phone"/);
- assert.match(ui,/Number\.isSafeInteger\(value\)/);
+ assert.match(ui,/\/api\/campaigns\/import/);
  assert.match(ui,/parsed\.contacts\.map\(contact=>contact\.phone\)/);
 });
