@@ -27,7 +27,6 @@ function Detail({
   const readiness = data?.readiness;
   const testReady = readiness?.test_status === "SENT";
   const eligibleCount = readiness?.eligible_total ?? 0;
-  const alreadyBlasted = readiness?.already_blasted_total ?? 0;
    const aiReplyReady = !c?.bot_enabled || readiness?.ai_auto_reply_ready === true;
   const testPending = ["PENDING","PROCESSING","RETRY"].includes(readiness?.test_status);
   useEffect(()=>{
@@ -158,13 +157,13 @@ function Detail({
           <details className="campaignReadiness section">
             <summary>Periksa kesiapan pengiriman</summary>
             <div className="campaignReadinessGrid">
-              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} nomor langsung dari Blash yang belum pernah dikirimi</span>
-              <span className={alreadyBlasted ? "blocked" : "ready"}>{alreadyBlasted} nomor sudah tercatat dalam Blash lain dan otomatis dilewati</span>
+              <span className={eligibleCount > 0 ? "ready" : "blocked"}>1. {eligibleCount} nomor berizin siap menerima Blash</span>
+              <span className="ready">Nomor yang sama dapat menerima kampanye berikutnya</span>
               <span className={testReady ? "ready" : "blocked"}>2. Percobaan pribadi opsional</span>
                <span className={aiReplyReady?"ready":"blocked"}>{c.bot_enabled?(aiReplyReady?"AI balasan otomatis sudah diaktifkan":"AI balasan OFF; Blash tetap dapat dikirim dan pesan masuk tetap tampil di Inbox"):"AI balasan untuk Blash ini dimatikan"}</span>
               <span className={readiness?.has_image && !readiness?.image_supported ? "blocked" : "ready"}>3. {readiness?.has_image ? (readiness?.image_supported ? "Pengirim gambar WAHA siap diuji" : "Pengirim gambar di n8n belum diperbarui") : readiness?.has_video ? "Video harus diuji" : "Pesan teks siap diuji"}</span>
             </div>
-            {eligibleCount === 0 && <p className="muted">Tidak ada nomor WhatsApp baru yang dapat dikirimi dari draft ini. Tambahkan nomor di Blash baru, tanpa memindahkan data ke Kontak.</p>}
+            {eligibleCount === 0 && <p className="muted">Belum ada penerima yang memenuhi syarat. Periksa izin promosi dan pengecualian pada daftar penerima.</p>}
             {readiness?.has_image && !readiness?.image_supported && <p className="muted">Sambungan pengirim gambar belum siap. <Link href="/integrations">Periksa koneksi →</Link></p>}
             <button type="button" className="btn" onClick={()=>void refresh()} disabled={busy}>Perbarui status</button>
           </details>
@@ -206,8 +205,8 @@ function Detail({
           </div>}
           <div className="campaignTestPanel section">
             <strong>Kirim langsung ke nomor yang ditambahkan di Blash</strong>
-            <p className="muted">{eligibleCount} nomor berizin siap diproses dari daftar Blash ini. Tidak perlu masuk menu Kontak. Nomor yang sudah pernah di-Blash dan opt-out tetap dilewati.</p>
-            {eligibleCount===0&&<p className="notice">Belum ada penerima baru yang memenuhi syarat dalam draft ini. Buat Blash baru, lalu masukkan nomor melalui Excel, tempel massal, atau ketik langsung di bagian Penerima. Tidak perlu membuka menu Kontak.</p>}
+            <p className="muted">{eligibleCount} nomor berizin siap diproses dari daftar Blash ini. Tidak perlu masuk menu Kontak. Nomor yang pernah di-Blash bisa menerima kampanye baru. Nomor opt-out tetap dilewati.</p>
+            {eligibleCount===0&&<p className="notice">Belum ada penerima yang memenuhi syarat dalam draft ini. Buat Blash baru, lalu masukkan nomor melalui Excel, tempel massal, atau ketik langsung di bagian Penerima. Tidak perlu membuka menu Kontak.</p>}
             <div className="blashSendMode" role="group" aria-label="Waktu pengiriman">
               <button className={"btn "+(sendMode==="NOW"?"primary":"")} aria-pressed={sendMode==="NOW"} onClick={()=>setSendMode("NOW")}>Kirim sekarang</button>
               <button className={"btn "+(sendMode==="LATER"?"primary":"")} aria-pressed={sendMode==="LATER"} onClick={()=>setSendMode("LATER")}>Jadwalkan</button>
