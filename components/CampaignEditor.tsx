@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
-import {CampaignStep,campaignRequest,normalizePhone,validateSteps,parseBlashImportRows} from "@/lib/campaigns";
+import {CampaignStep,campaignRequest,normalizePhone,validateSteps} from "@/lib/campaigns";
 import {useCampaignData} from "./useCampaignData";
 type ImportContact={phone:string;name:string;tags:string;consent:boolean;consent_evidence:string};
 type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;consent?:boolean;opted_out_at?:string|null;exclusion?:string|null};
