@@ -108,3 +108,49 @@ test("explicit opt-in is strict, contact-initiated and preserves identity checks
  assert.match(migration,/CUSTOMER_WHATSAPP_EXPLICIT_OPTIN/);
  assert.match(migration,/v_msg not in\(/);
 });
+
+
+test("Blash imports headerless single-column Excel layout with 90 unique recipients", () => {
+  const { parseBlashImportRows } = load();
+  const unique = Array.from({ length: 89 }, (_, i) => "6281234" + String(i).padStart(6, "0"));
+  const rows = [
+    ...unique.map(phone => [phone]),
+    ["85384931311"],
+    ...unique.slice(0, 9).map(phone => [phone]),
+    [""],
+  ];
+  const result = parseBlashImportRows(rows);
+  assert.equal(rows.length, 100);
+  assert.equal(result.contacts.length, 90);
+  assert.equal(result.duplicates, 9);
+  assert.equal(result.emptyRows, 1);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.contacts[89].phone, "6285384931311");
+  assert.equal(result.contacts[0].name, "Pelanggan " + unique[0].slice(-4));
+  assert.ok(result.contacts.every(contact => !contact.consent));
+});
+
+test("Blash headered imports preserve names and skip explicit promotional opt-outs", () => {
+  const { parseBlashImportRows } = load();
+  const result = parseBlashImportRows([
+    ["nama", "nomor", "izin_promosi", "bukti_izin"],
+    ["Guru A", "081234567890", "tidak", ""],
+    ["Guru B", "82123456789", "ya", "Persetujuan langsung via chat"],
+    ["Guru B duplicate", "6282123456789", "", ""],
+    ["Guru C", "abc", "", ""],
+  ]);
+  assert.equal(result.contacts.length, 1);
+  assert.equal(result.contacts[0].name, "Guru B");
+  assert.equal(result.contacts[0].phone, "6282123456789");
+  assert.equal(result.contacts[0].consent, true);
+  assert.equal(result.duplicates, 1);
+  assert.equal(result.errors.length, 2);
+});
+
+test("Blash autodetects numbers from a headerless second column", () => {
+  const { parseBlashImportRows } = load();
+  const result = parseBlashImportRows([["Sari", "081234567890"], ["Budi", "6289876543210"]]);
+  assert.equal(result.contacts.length, 2);
+  assert.equal(result.contacts[0].name, "Sari");
+  assert.equal(result.contacts[1].phone, "6289876543210");
+});

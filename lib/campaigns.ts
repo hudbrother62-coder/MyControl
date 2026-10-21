@@ -25,6 +25,97 @@ export function normalizePhone(value: string) {
     throw new Error("INVALID_PHONE: nomor harus 8–15 digit internasional");
   return phone;
 }
+
+export type BlashImportContact = {
+  phone: string;
+  name: string;
+  tags: string;
+  consent: boolean;
+  consent_evidence: string;
+};
+
+/**
+ * Read campaign recipients from ordinary spreadsheets, including a single
+ * column of phone numbers without any header or contact names.
+ * Importing numbers never grants marketing permission.
+ */
+export function parseBlashImportRows(sourceRows: string[][]) {
+  const rows = sourceRows.map(row => row.map(value => String(value ?? "").trim()));
+  const first = rows.findIndex(row => row.some(Boolean));
+  if (first < 0) throw new Error("File Excel/CSV kosong: tidak ada nomor untuk diimpor.");
+
+  const header = rows[first].map(value =>
+    value.toLowerCase().replace(/^\uFEFF/, "").replace(/[\s\-\/]+/g, "_"),
+  );
+  const find = (aliases: string[]) => header.findIndex(value => aliases.includes(value));
+  let phone = find([
+    "nomor", "phone", "whatsapp", "no_wa", "nomor_wa",
+    "no_whatsapp", "nomor_whatsapp", "telepon", "nomor_telepon",
+    "hp", "no_hp", "handphone", "ponsel", "wa",
+  ]);
+  const hasHeader = phone >= 0;
+  let name = hasHeader ? find(["nama", "name", "nama_kontak", "nama_pelanggan"]) : -1;
+  const tags = hasHeader ? find(["label", "tags", "kategori"]) : -1;
+  const permission = hasHeader ? find(["izin_promosi", "consent", "izin", "persetujuan_promosi"]) : -1;
+  const evidence = hasHeader ? find(["bukti_izin", "consent_evidence", "bukti_persetujuan", "sumber_izin"]) : -1;
+
+  if (!hasHeader) {
+    // Prefer whichever column actually contains telephone numbers; column A
+    // is selected automatically for the common one-column, headerless layout.
+    const columns = Math.min(12, Math.max(...rows.slice(first, first + 30).map(row => row.length)));
+    const scores = Array.from({ length: columns }, (_, col) =>
+      rows.slice(first, first + 30).filter(row => {
+        try { normalizePhone(row[col] || ""); return true; }
+        catch { return false; }
+      }).length,
+    );
+    const best = Math.max(...scores);
+    if (!best) throw new Error("Tidak ditemukan nomor WhatsApp. Gunakan kolom nomor, atau Excel satu kolom berisi nomor saja.");
+    phone = scores.indexOf(best);
+    if (phone > 0 && rows[first][0]) {
+      try { normalizePhone(rows[first][0]); }
+      catch { name = 0; }
+    }
+  }
+
+  const contacts: BlashImportContact[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  let duplicates = 0;
+  let emptyRows = 0;
+  for (let i = first + (hasHeader ? 1 : 0); i < rows.length; i++) {
+    const row = rows[i];
+    if (!row.some(Boolean)) { emptyRows++; continue; }
+    try {
+      const number = normalizePhone(row[phone] || "");
+      const display = (name >= 0 ? row[name] || "" : "").trim()
+        || ("Pelanggan " + number.slice(-4));
+      if (display.length > 100) throw new Error("Nama maksimal 100 karakter");
+      if (seen.has(number)) { duplicates++; continue; }
+      const rawPermission = permission >= 0 ? (row[permission] || "").toLowerCase() : "";
+      if (["tidak", "no", "false", "0", "stop", "ditolak"].includes(rawPermission))
+        throw new Error("Nomor sudah menolak promosi dan dilewati");
+      const consent = ["ya", "yes", "true", "1", "diizinkan", "setuju"].includes(rawPermission);
+      const proof = evidence >= 0 ? (row[evidence] || "").trim().slice(0, 500) : "";
+      seen.add(number);
+      contacts.push({
+        phone: number,
+        name: display,
+        tags: tags >= 0 ? (row[tags] || "").slice(0, 500) : "",
+        consent,
+        consent_evidence: consent ? proof : "",
+      });
+      if (contacts.length > 1000) throw new Error("Maksimal 1.000 nomor per Blash");
+    } catch (error) {
+      if ((error as Error).message.includes("Maksimal 1.000")) throw error;
+      errors.push("Baris " + (i + 1) + ": " + (error as Error).message);
+    }
+  }
+  if (!contacts.length)
+    throw new Error("Tidak ada nomor WhatsApp valid dalam file. " + errors.slice(0, 2).join("; "));
+  return { contacts, duplicates, errors, emptyRows };
+}
+
 export function parseContacts(raw: string) {
   const rows: string[][] = [];
   let row: string[] = [],

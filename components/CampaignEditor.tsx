@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
-import {CampaignStep,campaignRequest,normalizePhone,validateSteps} from "@/lib/campaigns";
+import {CampaignStep,campaignRequest,normalizePhone,validateSteps,parseBlashImportRows} from "@/lib/campaigns";
 import {useCampaignData} from "./useCampaignData";
 type ImportContact={phone:string;name:string;tags:string;consent:boolean;consent_evidence:string};
 type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;consent?:boolean;opted_out_at?:string|null;exclusion?:string|null};
@@ -21,37 +21,6 @@ function csvRows(raw:string){
  if(quoted)throw new Error("Format CSV: tanda kutip belum ditutup");
  if(row.length||value){row.push(value.replace(/\r$/,""));result.push(row)}
  return result;
-}
-function parseImportedRows(rows:string[][]){
- const header=(rows.shift()||[]).map(x=>x.trim().toLowerCase().replace(/^\uFEFF/,"").replace(/\s+/g,"_"));
- const find=(names:string[])=>header.findIndex(x=>names.includes(x));
- const name=find(["nama","name"]),phone=find(["nomor","phone","whatsapp","no_wa","nomor_wa","no_whatsapp"]),
-  tags=find(["label","tags","kategori"]),permission=find(["izin_promosi","consent","izin","persetujuan_promosi"]),
-  evidence=find(["bukti_izin","consent_evidence","bukti_persetujuan","sumber_izin"]);
- if(phone<0)throw new Error("Excel membutuhkan kolom nomor/phone/WhatsApp. Nama boleh kosong.");
- const seen=new Set<string>();const contacts:ImportContact[]=[];const errors:string[]=[];
- let duplicates=0;
- for(const [index,r]of rows.entries()){
-  if(!r.some(x=>x?.trim()))continue;
-  try{
-   const number=normalizePhone(r[phone]||"");
-   const display=(name>=0?(r[name]||""):"").trim()||("Pelanggan "+number.slice(-4));
-   if(!display||display.length>100)throw new Error("Nama harus 1–100 karakter");
-   if(seen.has(number)){duplicates++;continue}
-   seen.add(number);
-   const rawPermission=permission>=0?(r[permission]||"").trim().toLowerCase():"";
-   const optin=["ya","yes","true","1","diizinkan","setuju"].includes(rawPermission);
-   const optout=["tidak","no","false","0","stop","ditolak"].includes(rawPermission);
-   const proof=evidence>=0?(r[evidence]||"").trim():"";
-   // Bukti persetujuan tidak menjadi syarat input nomor; opt-out eksplisit tetap dilewati.
-   if(optout)throw new Error("Nomor menyatakan berhenti promosi dan tidak boleh dimasukkan ke Blash");
-    const approved=optin;
-   contacts.push({phone:number,name:display,tags:tags>=0?(r[tags]||"").trim().slice(0,500):"",
-    consent:approved,consent_evidence:approved?proof.slice(0,500):""});
-  }catch(e){errors.push("Baris "+(index+2)+": "+(e as Error).message)}
- }
- if(contacts.length>1000)throw new Error("Maksimal 1.000 nomor per Blash");
- return {contacts,errors,duplicates};
 }
 function parsePastedNumbers(raw:string){
  const contacts:ImportContact[]=[];const errors:string[]=[];const seen=new Set<string>();let duplicates=0;
@@ -197,7 +166,8 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     const {Workbook}=await import("exceljs");
     const wb=new Workbook();await wb.xlsx.load(await file.arrayBuffer());
     const ws=wb.worksheets[0];if(!ws)throw new Error("Tidak ada sheet dalam file");
-    rows=[];ws.eachRow(row=>{
+    if(ws.rowCount>5000)throw new Error("Maksimal 5.000 baris per file Excel");
+     rows=[];ws.eachRow({includeEmpty:true},row=>{
      const line:string[]=[];for(let i=1;i<=Math.min(row.cellCount,12);i++){
       const cell=row.getCell(i);
       const value=cell.value;
@@ -207,14 +177,14 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     });
    }else if(/\.csv$/i.test(file.name))rows=csvRows(await file.text());
    else throw new Error("Pilih file .xlsx atau .csv");
-   const parsed=parseImportedRows(rows);
+   const parsed=parseBlashImportRows(rows);
    setSelected(previous=>Array.from(new Set([
     ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
     ...parsed.contacts.map(contact=>contact.phone),
    ])).slice(0,1000));
    setImported(parsed.contacts);
    setRecipientSource("excel");
-   setImportNotice(parsed.contacts.length+" nomor unik otomatis dipilih · "+parsed.duplicates+" duplikat dilewati · "+parsed.errors.length+" nomor/baris tidak valid. Kontak opt-out dan nomor invalid dilewati.");
+   setImportNotice(parsed.contacts.length+" nomor unik dipilih · "+parsed.duplicates+" duplikat · "+parsed.emptyRows+" baris kosong · "+parsed.errors.length+" baris tidak valid. Nomor baru tidak perlu ada di menu Kontak.");
    if(parsed.errors.length)setError(parsed.errors.slice(0,5).join("; "));
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}
  }
@@ -326,8 +296,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </label>
      <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
      <label className="fieldLabel"><b>Atau unggah Excel / CSV</b>
+       <small className="muted">File satu kolom berisi nomor saja juga bisa, tanpa header dan tanpa nama. Nomor 08/8/62 otomatis diseragamkan.</small>
       <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
-       onChange={e=>void loadExcel(e.target.files?.[0])}/></label>
+       onChange={e=>{const chosen=e.currentTarget.files?.[0];e.currentTarget.value="";void loadExcel(chosen);}}/></label>
      <div className="actions"><button className="btn" type="button" onClick={()=>void template()}>Template Excel</button>
       <span className="muted">{pastedResult.contacts.length} nomor tempel · {imported.length} nomor Excel · {pastedResult.duplicates} duplikat</span></div>
      {pastedResult.errors.length>0&&<p className="notice" role="alert">{pastedResult.errors.length} baris dilewati: {pastedResult.errors.slice(0,3).join("; ")}</p>}
