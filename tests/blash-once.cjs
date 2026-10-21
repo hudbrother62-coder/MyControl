@@ -15,5 +15,5 @@ test("readiness reports skipped numbers and importer supports exact user Excel",
  assert.match(parser,/"nama", "name"/);
  assert.match(parser,/"nomor", "phone"/);
  assert.match(ui,/\/api\/campaigns\/import/);
- assert.match(ui,/parsed\.contacts\.map\(contact=>contact\.phone\)/);
+ assert.match(ui,/incoming\.map\(contact=>contact\.phone\)/);
 });
