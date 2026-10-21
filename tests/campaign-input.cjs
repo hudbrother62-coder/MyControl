@@ -154,3 +154,66 @@ test("Blash autodetects numbers from a headerless second column", () => {
   assert.equal(result.contacts[0].name, "Sari");
   assert.equal(result.contacts[1].phone, "6289876543210");
 });
+
+
+function readUploadModule() {
+  const m={exports:{}};
+  const code=ts.transpileModule(fs.readFileSync("lib/server/blash-import.ts","utf8"),{
+    compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
+  }).outputText;
+  vm.runInNewContext(code,{module:m,exports:m.exports,Buffer,TextDecoder,require:(id)=>{
+    if(id==="../campaigns")return load();
+    return require(id);
+  }});
+  return m.exports;
+}
+
+test("server imports headerless numeric XLSX with an empty row in the middle",async()=>{
+  const {Workbook}=require("exceljs");
+  const wb=new Workbook();
+  const sheet=wb.addWorksheet("Lembar1");
+  const unique=Array.from({length:89},(_,i)=>String(6281200000000+i));
+  const phones=[...unique,"85384931311",...unique.slice(0,9)];
+  assert.equal(phones.length,99);
+  phones.forEach((phone,i)=>{
+    // Match the uploaded Excel shape: A1:A100, A89 blank, 99 numeric cells.
+    const row=i<88?i+1:i+2;
+    sheet.getCell("A"+row).value=Number(phone);
+  });
+  const data=new Uint8Array(await wb.xlsx.writeBuffer());
+  const r=await readUploadModule().readBlashUpload("101 -200.xlsx",data);
+  assert.equal(r.sheetName,"Lembar1");
+  assert.equal(r.contacts.length,90);
+  assert.equal(r.duplicates,9);
+  assert.equal(r.emptyRows,1);
+  assert.equal(r.errors.length,0);
+  assert.equal(r.contacts[0].name,"Pelanggan "+unique[0].slice(-4));
+  assert.equal(r.contacts[89].phone,"6285384931311");
+  assert.ok(r.contacts.every(c=>c.consent===false));
+});
+
+test("server accepts headerless CSV, handles duplicates, and rejects .xls",async()=>{
+  const parse=readUploadModule().readBlashUpload;
+  const bytes=new TextEncoder().encode("6281234567890\n6281234567890\n081234567891\n");
+  const r=await parse("data.csv",bytes);
+  assert.equal(r.contacts.length,2);
+  assert.equal(r.duplicates,1);
+  await assert.rejects(parse("contacts.xls",new Uint8Array([1,2])),/xlsx|csv/);
+});
+
+test("server Excel import works with optional headers",async()=>{
+  const {Workbook}=require("exceljs");
+  const wb=new Workbook();
+  const sheet=wb.addWorksheet("Kontak");
+  sheet.addRow(["nomor","nama"]);
+  sheet.addRow([81234567890,"Budi"]);
+  const data=new Uint8Array(await wb.xlsx.writeBuffer());
+  const r=await readUploadModule().readBlashUpload("data.xlsx",data);
+  assert.equal(r.contacts.length,1);
+  assert.equal(r.contacts[0].name,"Budi");
+});
+
+test("Excel import has no template buttons in Blash or Kontak",()=>{
+  assert.doesNotMatch(fs.readFileSync("components/CampaignEditor.tsx","utf8"),/Template Excel|template-penerima/);
+  assert.doesNotMatch(fs.readFileSync("app/contacts/page.tsx","utf8"),/Template CSV|template-kontak/);
+});
