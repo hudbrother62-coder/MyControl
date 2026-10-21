@@ -432,7 +432,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </div>
     </details>}
     </>}
-    <p className="muted">Nomor invalid, LID, opt-out, pengecualian, dan nomor yang sudah pernah di-Blash tetap dilewati otomatis.</p>
+    <p className="muted">Nomor yang pernah di-Blash bisa menerima kampanye baru. Nomor invalid, LID, opt-out, dan pengecualian tetap dilewati otomatis.</p>
    </section>
    <section id="blash-message" className="oneCampaignBlock"><h3>3. Apa yang ingin dikirim?</h3><p className="muted">Pilih poster, teks, atau video. Link YouTube cukup ditempel di kolom pesan.</p>
     <div className="campaignCompose">
