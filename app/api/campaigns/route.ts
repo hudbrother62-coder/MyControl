@@ -127,7 +127,7 @@ export async function POST(req: Request) {
         }),
       );
     if (b.action === "create") {
-      validateSteps(b.campaign?.steps);
+      const validatedSteps = validateSteps(b.campaign?.steps);
       const campaign = b.campaign;
       if (!campaign || !Array.isArray(campaign.phones) || campaign.phones.length > 1000 ||
           !Array.isArray(campaign.import_contacts || []) || (campaign.import_contacts || []).length > 1000 ||
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
       return Response.json(
         await rpc("mc_save_campaign", {
           p_campaign: {name:campaign.name,product_id:campaign.product_id,
-            steps:campaign.steps,bot_enabled:campaign.bot_enabled,phones,
+            steps:validatedSteps,bot_enabled:campaign.bot_enabled,phones,
             import_contacts:imported,excluded_phones:excluded,bulk_consent:bulkConsent,bulk_consent_evidence:bulkEvidence},
         }),
       );

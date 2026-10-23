@@ -83,6 +83,7 @@ export function parseBlashImportRows(sourceRows: string[][]) {
   const seen = new Set<string>();
   let duplicates = 0;
   let emptyRows = 0;
+  let namedCount = 0;
   for (let i = first + (hasHeader ? 1 : 0); i < rows.length; i++) {
     const row = rows[i];
     if (!row.some(Boolean)) { emptyRows++; continue; }
@@ -98,6 +99,7 @@ export function parseBlashImportRows(sourceRows: string[][]) {
       const consent = ["ya", "yes", "true", "1", "diizinkan", "setuju"].includes(rawPermission);
       const proof = evidence >= 0 ? (row[evidence] || "").trim().slice(0, 500) : "";
       seen.add(number);
+      if (name >= 0 && (row[name] || "").trim()) namedCount++;
       contacts.push({
         phone: number,
         name: display,
@@ -113,7 +115,7 @@ export function parseBlashImportRows(sourceRows: string[][]) {
   }
   if (!contacts.length)
     throw new Error("Tidak ada nomor WhatsApp valid dalam file. " + errors.slice(0, 2).join("; "));
-  return { contacts, duplicates, errors, emptyRows };
+  return { contacts, duplicates, errors, emptyRows, namedCount, nameColumnDetected: hasHeader && name >= 0 };
 }
 
 export function parseContacts(raw: string) {
@@ -191,19 +193,30 @@ export function parseContacts(raw: string) {
     throw new Error("Maksimal 1.000 kontak per import");
   return { contacts, errors, duplicates };
 }
+/** Keep the database worker's existing {{nama}} placeholder canonical. */
+export function normalizePersonalizedMessage(body: string) {
+  return body.replace(/\{\{nama\}\}|\{nama\}/g, "{{nama}}");
+}
+
+/** Preview exactly the same placeholder text that the outbound worker uses. */
+export function renderPersonalizedMessage(body: string, name: string) {
+  return normalizePersonalizedMessage(body).replaceAll("{{nama}}", name.trim() || "Bapak/Ibu");
+}
+
 export function validateSteps(value: unknown): CampaignStep[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 2)
     throw new Error("Isi 1 atau 2 pesan");
   return value.map((s) => {
+    const normalizedBody = typeof s?.body === "string" ? normalizePersonalizedMessage(s.body) : "";
     if (
       !s ||
       !["TEXT", "IMAGE", "VIDEO"].includes(s.type) ||
       typeof s.body !== "string" ||
       (s.type !== "IMAGE" && !s.body.trim()) ||
-      s.body.length > 4000
+      normalizedBody.length > 4000
     )
       throw new Error("Teks/video membutuhkan caption atau pesan; poster boleh tanpa caption. Maksimal 4.000 karakter.");
-    if (/\{\{|\}\}/.test(s.body.replaceAll("{{nama}}", "")))
+    if (/\{\{|\}\}/.test(normalizedBody.replaceAll("{{nama}}", "")))
       throw new Error("Variabel yang tersedia hanya {{nama}}");
     if (s.type === "IMAGE" || s.type === "VIDEO") {
       const media = String(s.media_url || "");
@@ -227,7 +240,7 @@ export function validateSteps(value: unknown): CampaignStep[] {
     }
     return {
       type: s.type,
-      body: s.body.trim(),
+      body: normalizedBody.trim(),
       ...(s.type !== "TEXT" ? { media_url: s.media_url } : {}),
     };
   });

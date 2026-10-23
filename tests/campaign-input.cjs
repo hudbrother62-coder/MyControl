@@ -217,3 +217,43 @@ test("Excel import has no template buttons in Blash or Kontak",()=>{
   assert.doesNotMatch(fs.readFileSync("components/CampaignEditor.tsx","utf8"),/Template Excel|template-penerima/);
   assert.doesNotMatch(fs.readFileSync("app/contacts/page.tsx","utf8"),/Template CSV|template-kontak/);
 });
+
+
+test("Blash personalizes both {nama} and legacy {{nama}} using the same worker token",()=>{
+  const c=load();
+  const validated=c.validateSteps([{type:"TEXT",body:"Halo {nama}, selamat datang {{nama}}!"}]);
+  assert.equal(validated[0].body,"Halo {{nama}}, selamat datang {{nama}}!");
+  assert.equal(c.renderPersonalizedMessage(validated[0].body,"Bu Siti"),"Halo Bu Siti, selamat datang Bu Siti!");
+  assert.equal(c.renderPersonalizedMessage("Halo {nama}",""),"Halo Bapak/Ibu");
+  assert.throws(()=>c.validateSteps([{type:"TEXT",body:"Halo {{lainnya}}"}]),/Variabel/);
+});
+
+test("Excel files split per 100 and per 200 autodetect name and phone",async()=>{
+  const {Workbook}=require("exceljs");
+  for(const size of [100,200]){
+    const wb=new Workbook();
+    const sheet=wb.addWorksheet("Pelanggan");
+    sheet.addRow(["name","phone"]);
+    for(let i=1;i<=size;i++)sheet.addRow(["Nama Pelanggan "+i,"62812"+String(i).padStart(8,"0")]);
+    const data=new Uint8Array(await wb.xlsx.writeBuffer());
+    const result=await readUploadModule().readBlashUpload("1-"+size+".xlsx",data);
+    assert.equal(result.contacts.length,size);
+    assert.equal(result.namedCount,size);
+    assert.equal(result.nameColumnDetected,true);
+    assert.equal(result.contacts[0].name,"Nama Pelanggan 1");
+    assert.equal(result.contacts.at(-1).name,"Nama Pelanggan "+size);
+  }
+});
+
+test("Blash API persists normalized token and uses uploaded name per recipient",()=>{
+  const api=fs.readFileSync("app/api/campaigns/route.ts","utf8");
+  const editor=fs.readFileSync("components/CampaignEditor.tsx","utf8");
+  const migration=fs.readFileSync("database/054_blash_excel_recipient_names.sql","utf8");
+  assert.match(api,/steps:validatedSteps/);
+  assert.match(editor,/parsed\.namedCount/);
+  assert.match(editor,/renderPersonalizedMessage\(step\.body,previewName\)/);
+  assert.match(migration,/UPDATE public\.mc_campaign_recipients AS r/);
+  assert.match(migration,/r\.phone=src\.phone/);
+  assert.match(migration,/mc_save_campaign_before_bulk_promo/);
+  assert.doesNotMatch(migration,/UPDATE public\.mc_campaign_contacts/);
+});

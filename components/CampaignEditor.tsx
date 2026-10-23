@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
-import {CampaignStep,campaignRequest,normalizePhone,validateSteps} from "@/lib/campaigns";
+import {CampaignStep,campaignRequest,normalizePhone,validateSteps,renderPersonalizedMessage} from "@/lib/campaigns";
 import {useCampaignData} from "./useCampaignData";
 type ImportContact={phone:string;name:string;tags:string;consent:boolean;consent_evidence:string};
 type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;consent?:boolean;opted_out_at?:string|null;exclusion?:string|null};
@@ -61,15 +61,15 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const knownPhones=new Set(known.filter(x=>x.phone).map(x=>x.phone));
  const allImported=useMemo(()=>{
   const unique=new Map<string,ImportContact>();
+  for(const contact of pastedResult.contacts)unique.set(contact.phone,contact);
   for(const contact of imported)unique.set(contact.phone,contact);
   for(const contact of manualContacts)unique.set(contact.phone,contact);
-  for(const contact of pastedResult.contacts)unique.set(contact.phone,contact);
   return Array.from(unique.values());
  },[imported,manualContacts,pastedResult]);
  const excelRows=useMemo(()=>imported.filter(c=>(c.name+" "+c.phone+" "+c.tags).toLowerCase().includes(search.toLowerCase())),[imported,search]);
  const manualVisible=useMemo(()=>manualContacts.filter(c=>(c.name+" "+c.phone+" "+c.tags).toLowerCase().includes(search.toLowerCase())),[manualContacts,search]);
  const visible=recipientSource==="existing"?known:recipientSource==="excel"?excelRows:manualVisible;
- const previewName=known.find(c=>selected.includes(c.phone||""))?.name||allImported.find(c=>selected.includes(c.phone))?.name||"Pelanggan";
+ const previewName=allImported.find(c=>selected.includes(c.phone))?.name||known.find(c=>selected.includes(c.phone||""))?.name||"Bapak/Ibu";
  const importedSelected=allImported.filter(c=>selected.includes(c.phone));
  const blockedKnown=new Set(known.filter(c=>c.opted_out_at||c.exclusion).map(c=>c.phone));
  const pendingManual=manualRows.flatMap(row=>{try{if(!row.name.trim()||!row.phone.trim())return [];return [{phone:normalizePhone(row.phone),consent:false}]}catch{return []}});
@@ -84,7 +84,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const readyPreview=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&
    (documentedPhones.has(phone)||listConfirmed)).length;
  const preparedEligible=preparedPhones.filter(phone=>!blockedKnown.has(phone)&&!excluded.includes(phone)&&(locallyApproved.has(phone)||pendingManual.some(row=>row.phone===phone))).length;
- const displayContact=(phone:string)=>known.find(c=>c.phone===phone)?.name||allImported.find(c=>c.phone===phone)?.name||("+"+phone);
+ const displayContact=(phone:string)=>allImported.find(c=>c.phone===phone)?.name||known.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
  function toggle(phone:string){
   setSelected(prev=>prev.includes(phone)?prev.filter(x=>x!==phone):prev.length>=1000?prev:[...prev,phone]);
@@ -163,6 +163,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     setImported(incoming);
     setRecipientSource("excel");
     setImportNotice(file.name+": "+incoming.length+" nomor unik berhasil dibaca dan dipilih · "+
+      (parsed.nameColumnDetected?parsed.namedCount+" nama pelanggan terdeteksi otomatis · ":"Kolom nama tidak ada; sapaan cadangan digunakan · ")+
       parsed.duplicates+" duplikat · "+parsed.emptyRows+" baris kosong · "+
       parsed.errors.length+" baris dilewati."+
       (parsed.errors.length?" Contoh masalah: "+parsed.errors.slice(0,2).join("; "):""));
@@ -266,7 +267,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </label>
      <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
      <label className="fieldLabel"><b>Atau unggah Excel / CSV</b>
-       <small className="muted">Bisa langsung unggah Excel seperti 101 -200.xlsx: cukup nomor WhatsApp di kolom A, tanpa header atau nama. Nomor 08/8/62 otomatis diseragamkan.</small>
+       <small className="muted">Mendeteksi kolom name dan phone seperti file per 100/per 200 yang sudah disiapkan, termasuk nama pelanggan. Excel satu kolom tanpa header juga tetap didukung. Nomor 08/8/62 otomatis diseragamkan.</small>
       <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
        onChange={e=>{const chosen=e.currentTarget.files?.[0];e.currentTarget.value="";void loadExcel(chosen);}}/></label>
      <div className="actions">
@@ -403,8 +404,9 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       </div>}
       <label className="fieldLabel">{step.type==="IMAGE"?"Pesan di bawah poster (opsional)":step.type==="VIDEO"?"Pesan di bawah video":"Pesan atau link YouTube"}
        <textarea className="input" rows={4} maxLength={4000} value={step.body}
-        onChange={e=>edit(i,{body:e.target.value})} placeholder="Halo {{nama}}, ini penawaran kami.\nLink YouTube juga boleh ditambahkan di sini."/></label>
-      <small className="muted">{step.body.length}/4.000 · Personalisasi dengan {"{{nama}}"}</small>
+        onChange={e=>edit(i,{body:e.target.value})} placeholder="Halo {nama}, ini penawaran kami.\nLink YouTube juga boleh ditambahkan di sini."/></label>
+      <small className="muted">{step.body.length}/4.000 · Deteksi nama Excel: gunakan {"{nama}"} atau {"{{nama}}"} (keduanya sama).</small>
+      <button type="button" className="btn" disabled={step.body.length>3990} onClick={()=>edit(i,{body:step.body+(step.body&&!/\s$/.test(step.body)?" ":"")+"{nama}"})}>+ Sisipkan nama pelanggan</button>
      </div>)}
      {steps.length<2&&<button className="btn" onClick={()=>setSteps(v=>[...v,{type:"TEXT",body:""}])}>+ Tambah pesan kedua</button>}
      </div>
@@ -414,7 +416,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
         <div className="videoPlaceholder">▶ Video MP4</div>)}
        {step.type==="IMAGE"&&(mediaPreviews[i]?<img src={mediaPreviews[i]} className="campaignPosterPreview" alt="Pratinjau gambar penerima"/>:
         <div className="videoPlaceholder">▧ Poster JPG / PNG</div>)}
-       <p>{step.body.replaceAll("{{nama}}",previewName)||"Isi pesan akan muncul di sini."}</p>
+       <p>{renderPersonalizedMessage(step.body,previewName)||"Isi pesan akan muncul di sini."}</p>
       </div>)}
      </aside>
     </div>
