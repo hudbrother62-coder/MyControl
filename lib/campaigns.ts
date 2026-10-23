@@ -83,6 +83,7 @@ export function parseBlashImportRows(sourceRows: string[][]) {
   const seen = new Set<string>();
   let duplicates = 0;
   let emptyRows = 0;
+  let namedCount = 0;
   for (let i = first + (hasHeader ? 1 : 0); i < rows.length; i++) {
     const row = rows[i];
     if (!row.some(Boolean)) { emptyRows++; continue; }
@@ -98,6 +99,7 @@ export function parseBlashImportRows(sourceRows: string[][]) {
       const consent = ["ya", "yes", "true", "1", "diizinkan", "setuju"].includes(rawPermission);
       const proof = evidence >= 0 ? (row[evidence] || "").trim().slice(0, 500) : "";
       seen.add(number);
+      if (name >= 0 && (row[name] || "").trim()) namedCount++;
       contacts.push({
         phone: number,
         name: display,
@@ -113,7 +115,7 @@ export function parseBlashImportRows(sourceRows: string[][]) {
   }
   if (!contacts.length)
     throw new Error("Tidak ada nomor WhatsApp valid dalam file. " + errors.slice(0, 2).join("; "));
-  return { contacts, duplicates, errors, emptyRows };
+  return { contacts, duplicates, errors, emptyRows, namedCount, nameColumnDetected: hasHeader && name >= 0 };
 }
 
 export function parseContacts(raw: string) {
