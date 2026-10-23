@@ -250,10 +250,10 @@ test("Blash API persists normalized token and uses uploaded name per recipient",
   const editor=fs.readFileSync("components/CampaignEditor.tsx","utf8");
   const migration=fs.readFileSync("database/054_blash_excel_recipient_names.sql","utf8");
   assert.match(api,/steps:validatedSteps/);
-  assert.match(editor,/parsed\\.namedCount/);
-  assert.match(editor,/renderPersonalizedMessage\\(step\\.body,previewName\\)/);
-  assert.match(migration,/UPDATE public\\.mc_campaign_recipients AS r/);
-  assert.match(migration,/r\\.phone=src\\.phone/);
+  assert.match(editor,/parsed\.namedCount/);
+  assert.match(editor,/renderPersonalizedMessage\(step\.body,previewName\)/);
+  assert.match(migration,/UPDATE public\.mc_campaign_recipients AS r/);
+  assert.match(migration,/r\.phone=src\.phone/);
   assert.match(migration,/mc_save_campaign_before_bulk_promo/);
-  assert.doesNotMatch(migration,/UPDATE public\\.mc_campaign_contacts/);
+  assert.doesNotMatch(migration,/UPDATE public\.mc_campaign_contacts/);
 });
