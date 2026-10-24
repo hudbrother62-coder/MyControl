@@ -349,7 +349,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + '/api/sessions/CSNEW2'}}",
+        "url": "={{String($('Read Web Controls').first().json.settings.waha_base_url || $env.WAHA_BASE_URL || '').trim().replace(/\\/+$/, '') + '/api/sessions/CS2'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -375,7 +375,7 @@
         1700
       ],
       "parameters": {
-        "jsCode": "return $json.status==='WORKING'&&$json.name==='CSNEW2'&&$json.me?.id==='6283186750567@c.us'&&($json.me?.lid==null||$json.me.lid==='208770441470075@lid')?[{json:{working:true}}]:[];"
+        "jsCode": "return $json.status==='WORKING'&&$json.name==='CS2'&&$json.me?.id==='6283186750567@c.us'&&($json.me?.lid==null||$json.me.lid==='208770441470075@lid')?[{json:{working:true}}]:[];"
       }
     },
     {
