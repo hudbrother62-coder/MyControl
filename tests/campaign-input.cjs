@@ -296,7 +296,7 @@ test("browser fallback imports real 100 and 200 row XLSX when API fetch fails",a
 
 test("browser fallback handles CSV and rejects ZIP, without silently losing names",async()=>{
  const parser=readBrowserUploadModule().readBlashFileLocally;
- const csv="name,phone\\nSari,081234567890\\nBudi,082345678901\\n";
+ const csv="name,phone\nSari,081234567890\nBudi,082345678901\n";
  const parsed=await parser({name:"101-200.csv",size:csv.length,text:async()=>csv});
  assert.equal(parsed.contacts.length,2);
  assert.equal(parsed.contacts[0].name,"Sari");
@@ -306,7 +306,7 @@ test("browser fallback handles CSV and rejects ZIP, without silently losing name
 
 test("Blash hides unrelated CRM fetch errors during local Excel recipients",()=>{
  const editor=fs.readFileSync("components/CampaignEditor.tsx","utf8");
- assert.match(editor,/readBlashFileLocally\\(file\\)/);
- assert.match(editor,/recipientSource==="existing"\\?loadError/);
+ assert.match(editor,/readBlashFileLocally\(file\)/);
+ assert.match(editor,/recipientSource==="existing"\?loadError/);
  assert.match(editor,/browserFallback/);
 });
