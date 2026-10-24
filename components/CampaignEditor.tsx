@@ -3,6 +3,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
 import {CampaignStep,campaignRequest,normalizePhone,validateSteps,renderPersonalizedMessage} from "@/lib/campaigns";
 import {useCampaignData} from "./useCampaignData";
+import {readBlashFileLocally} from "@/lib/blash-local-import";
 type ImportContact={phone:string;name:string;tags:string;consent:boolean;consent_evidence:string};
 type KnownContact={phone:string|null;chat_id?:string;name:string;tags?:string;consent?:boolean;opted_out_at?:string|null;exclusion?:string|null};
 type RecipientSource="paste"|"existing"|"excel"|"manual";
@@ -147,25 +148,45 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    setBusy(true);setError("");setImportNotice("");
    try{
     if(file.size>4*1024*1024)throw new Error("File Excel/CSV maksimal 4 MB");
+    if(!/\.(xlsx|csv)$/i.test(file.name))throw new Error("Pilih file .xlsx atau .csv, bukan ZIP. Ekstrak ZIP dahulu jika diperlukan.");
     const body=new FormData();
     body.append("file",file,file.name);
-    const response=await fetch("/api/campaigns/import",{
-     method:"POST",body,credentials:"same-origin",cache:"no-store",
-    });
-    const parsed=await response.json();
-    if(!response.ok||parsed.ok===false)throw new Error(parsed.error||"Gagal membaca Excel. Silakan pilih ulang file.");
+    let parsed:any;
+    let browserFallback=false;
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),15000);
+    try{
+     const response=await fetch("/api/campaigns/import",{
+      method:"POST",body,credentials:"same-origin",cache:"no-store",signal:controller.signal,
+     });
+     if(response.status>=500)throw new TypeError("Layanan impor sementara tidak terhubung");
+     const result=await response.json().catch(()=>{throw new TypeError("Respons API impor tidak dapat dibaca")});
+     if(!response.ok||result.ok===false)
+      throw new Error(result.error||"File tidak dapat diimpor (HTTP "+response.status+").");
+     parsed=result;
+    }catch(networkError){
+     const recoverable=networkError instanceof TypeError ||
+       (networkError instanceof Error&&networkError.name==="AbortError");
+     if(!recoverable)throw networkError;
+     // Parse locally when Android/browser POST fails, without uploading any
+     // contacts or bypassing the existing campaign authorization on save.
+     try{parsed=await readBlashFileLocally(file);browserFallback=true;}
+     catch(localError){throw new Error("Gagal membaca file: "+(localError as Error).message)}
+    }finally{clearTimeout(timer)}
     const incoming=parsed.contacts as ImportContact[];
-    if(!Array.isArray(incoming)||incoming.length===0)throw new Error("Tidak ditemukan nomor WhatsApp valid dalam Excel.");
+    if(!Array.isArray(incoming)||incoming.length===0)
+     throw new Error("Tidak ditemukan nomor WhatsApp valid dalam Excel.");
     setSelected(previous=>Array.from(new Set([
      ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
      ...incoming.map(contact=>contact.phone),
     ])).slice(0,1000));
     setImported(incoming);
     setRecipientSource("excel");
-    setImportNotice(file.name+": "+incoming.length+" nomor unik berhasil dibaca dan dipilih · "+
+    setImportNotice("✓ "+file.name+": "+incoming.length+" nomor unik berhasil dibaca dan dipilih · "+
       (parsed.nameColumnDetected?parsed.namedCount+" nama pelanggan terdeteksi otomatis · ":"Kolom nama tidak ada; sapaan cadangan digunakan · ")+
       parsed.duplicates+" duplikat · "+parsed.emptyRows+" baris kosong · "+
       parsed.errors.length+" baris dilewati."+
+      (browserFallback?" Dibaca langsung dari file di HP karena koneksi API impor bermasalah.":"")+
       (parsed.errors.length?" Contoh masalah: "+parsed.errors.slice(0,2).join("; "):""));
    }catch(e){setError((e as Error).message||"Impor gagal. Coba unggah ulang file.");}
    finally{setBusy(false)}
@@ -267,7 +288,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
      </label>
      <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
      <label className="fieldLabel"><b>Atau unggah Excel / CSV</b>
-       <small className="muted">Mendeteksi kolom name dan phone seperti file per 100/per 200 yang sudah disiapkan, termasuk nama pelanggan. Excel satu kolom tanpa header juga tetap didukung. Nomor 08/8/62 otomatis diseragamkan.</small>
+       <small className="muted">Mendeteksi kolom name dan phone dari file per 100/per 200, termasuk nama pelanggan. Pilih file .xlsx langsung (jangan ZIP). Jika API impor terganggu di HP, file tetap dibaca otomatis di browser. Nomor 08/8/62 diseragamkan.</small>
       <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
        onChange={e=>{const chosen=e.currentTarget.files?.[0];e.currentTarget.value="";void loadExcel(chosen);}}/></label>
      <div className="actions">
@@ -444,7 +465,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     <p className="muted">Tes ke nomor sendiri bersifat opsional. Pelanggan belum menerima pesan sampai kamu memilih Kirim atau Jadwalkan.</p>
    </section>
   </div>
-  <div ref={feedback} tabIndex={-1}>{(error||loadError)&&<div className="notice errorNotice section" role="alert">{error||loadError}</div>}</div>
+  <div ref={feedback} tabIndex={-1}>{(error||(recipientSource==="existing"?loadError:""))&&<div className="notice errorNotice section" role="alert">{error||(recipientSource==="existing"?loadError:"")}</div>}</div>
   <div className="actions section"><button className="btn primary" disabled={busy||readyPreview===0}
    onClick={()=>void save("NOW")}>{busy?"Memproses…":"Kirim sekarang ("+readyPreview+" nomor)"}</button>
    <button className="btn" disabled={busy} onClick={()=>void save("DRAFT")}>Simpan draft / jadwalkan</button>
