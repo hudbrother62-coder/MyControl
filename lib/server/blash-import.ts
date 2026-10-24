@@ -1,4 +1,4 @@
-import { Workbook } from "exceljs";
+import { readXlsxRows } from "../xlsx-rows";
 import { parseBlashImportRows } from "../campaigns";
 
 function parseDelimitedRows(raw: string): string[][] {
@@ -25,14 +25,6 @@ function parseDelimitedRows(raw: string): string[][] {
   return rows;
 }
 
-function cellString(value: unknown, text: string) {
-  if (typeof value === "number") {
-    if (!Number.isSafeInteger(value)) return text || "";
-    return String(value);
-  }
-  return String(text || value || "").trim();
-}
-
 export async function readBlashUpload(filename: string, bytes: Uint8Array) {
   const maxBytes = 4 * 1024 * 1024;
   if (!bytes.byteLength || bytes.byteLength > maxBytes)
@@ -45,30 +37,12 @@ export async function readBlashUpload(filename: string, bytes: Uint8Array) {
   if (!/\.xlsx$/i.test(filename))
     throw new Error("File harus berformat .xlsx atau .csv.");
 
-  const workbook = new Workbook();
-  try {
-    await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
-  } catch {
-    throw new Error("File Excel tidak dapat dibuka. Pastikan file .xlsx tidak rusak.");
-  }
   let issue: Error | null = null;
-  for (const sheet of workbook.worksheets) {
-    if (sheet.rowCount > 5000)
-      throw new Error("Excel terlalu panjang: maksimal 5.000 baris per sheet.");
-    const rows: string[][] = [];
-    for (let r = 1; r <= sheet.rowCount; r++) {
-      const row = sheet.getRow(r);
-      const line: string[] = [];
-      for (let c = 1; c <= Math.min(row.cellCount, 12); c++) {
-        const cell = row.getCell(c);
-        line.push(cellString(cell.value, cell.text));
-      }
-      rows.push(line);
-    }
+  for (const sheet of await readXlsxRows(bytes)) {
     try {
-      return { ...parseBlashImportRows(rows), sheetName: sheet.name };
-    } catch (e) {
-      issue = e instanceof Error ? e : new Error("Tidak ada nomor WA valid.");
+      return { ...parseBlashImportRows(sheet.rows), sheetName: sheet.sheetName };
+    } catch (error) {
+      issue = error instanceof Error ? error : new Error("Tidak ada nomor WA valid.");
     }
   }
   throw issue || new Error("Excel tidak memiliki sheet berisi nomor WhatsApp.");

@@ -156,6 +156,18 @@ test("Blash autodetects numbers from a headerless second column", () => {
 });
 
 
+function readXlsxRowsModule() {
+  const m={exports:{}};
+  const code=ts.transpileModule(fs.readFileSync("lib/xlsx-rows.ts","utf8"),{
+    compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}
+  }).outputText;
+  vm.runInNewContext(code,{module:m,exports:m.exports,require:(id)=>{
+    if(id==="jszip")return require("jszip");
+    return require(id);
+  },Buffer,TextDecoder,Uint8Array});
+  return m.exports;
+}
+
 function readUploadModule() {
   const m={exports:{}};
   const code=ts.transpileModule(fs.readFileSync("lib/server/blash-import.ts","utf8"),{
@@ -163,6 +175,7 @@ function readUploadModule() {
   }).outputText;
   vm.runInNewContext(code,{module:m,exports:m.exports,Buffer,TextDecoder,require:(id)=>{
     if(id==="../campaigns")return load();
+    if(id==="../xlsx-rows")return readXlsxRowsModule();
     return require(id);
   }});
   return m.exports;
@@ -266,6 +279,7 @@ function readBrowserUploadModule(){
  }).outputText;
  vm.runInNewContext(code,{module:m,exports:m.exports,Buffer,TextDecoder,require:(id)=>{
    if(id==="./campaigns")return load();
+   if(id==="./xlsx-rows")return readXlsxRowsModule();
    return require(id);
  }});
  return m.exports;
@@ -309,4 +323,33 @@ test("Blash hides unrelated CRM fetch errors during local Excel recipients",()=>
  assert.match(editor,/readBlashFileLocally\(file\)/);
  assert.match(editor,/recipientSource==="existing"\?loadError/);
  assert.match(editor,/browserFallback/);
+});
+
+test("generated artifact-style XLSX prefixed XML with string cells parses 100 and 200 customers",async()=>{
+  const JSZip=require("jszip");
+  const parse=readUploadModule().readBlashUpload;
+  const local=readBrowserUploadModule().readBlashFileLocally;
+  for(const count of [100,200]){
+    const zip=new JSZip();
+    zip.file("xl/workbook.xml", '<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheets><x:sheet name="Pelanggan" sheetId="1"/></x:sheets></x:workbook>');
+    zip.file("xl/sharedStrings.xml", '<x:sst xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>');
+    let xml='<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheetData>';
+    xml+='<x:row r="1"><x:c r="A1" t="str"><x:v>name</x:v></x:c><x:c r="B1" t="str"><x:v>phone</x:v></x:c></x:row>';
+    for(let i=1;i<=count;i++){
+      const n="62812"+String(i).padStart(8,"0");
+      xml+='<x:row r="'+(i+1)+'"><x:c r="A'+(i+1)+'" t="str"><x:v>Guru '+i+'</x:v></x:c><x:c r="B'+(i+1)+'" t="str"><x:v>'+n+'</x:v></x:c></x:row>';
+    }
+    zip.file("xl/worksheets/sheet1.xml",xml+"</x:sheetData></x:worksheet>");
+    const buffer=Buffer.from(await zip.generateAsync({type:"nodebuffer"}));
+    const server=await parse("1-"+count+".xlsx",new Uint8Array(buffer));
+    const browser=await local({name:"1-"+count+".xlsx",size:buffer.length,
+      arrayBuffer:async()=>Uint8Array.from(buffer).buffer});
+    for(const result of [server,browser]){
+      assert.equal(result.contacts.length,count);
+      assert.equal(result.namedCount,count);
+      assert.equal(result.contacts[0].name,"Guru 1");
+      assert.equal(result.contacts[0].phone,"6281200000001");
+      assert.equal(result.contacts.at(-1).name,"Guru "+count);
+    }
+  }
 });
