@@ -257,3 +257,56 @@ test("Blash API persists normalized token and uses uploaded name per recipient",
   assert.match(migration,/mc_save_campaign_before_bulk_promo/);
   assert.doesNotMatch(migration,/UPDATE public\.mc_campaign_contacts/);
 });
+
+
+function readBrowserUploadModule(){
+ const m={exports:{}};
+ const code=ts.transpileModule(fs.readFileSync("lib/blash-local-import.ts","utf8"),{
+   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
+ }).outputText;
+ vm.runInNewContext(code,{module:m,exports:m.exports,Buffer,TextDecoder,require:(id)=>{
+   if(id==="./campaigns")return load();
+   return require(id);
+ }});
+ return m.exports;
+}
+
+test("browser fallback imports real 100 and 200 row XLSX when API fetch fails",async()=>{
+ const {Workbook}=require("exceljs");
+ const browserParser=readBrowserUploadModule().readBlashFileLocally;
+ for(const size of [100,200]){
+  const workbook=new Workbook();
+  const sheet=workbook.addWorksheet("Pelanggan");
+  sheet.addRow(["name","phone"]);
+  for(let i=0;i<size;i++)
+   sheet.addRow(["Ibu "+(i+1),"62817"+String(i).padStart(8,"0")]);
+  const buffer=Buffer.from(await workbook.xlsx.writeBuffer());
+  const result=await browserParser({
+   name:"1-"+size+".xlsx",
+   size:buffer.length,
+   arrayBuffer:async()=>Uint8Array.from(buffer).buffer,
+  });
+  assert.equal(result.contacts.length,size);
+  assert.equal(result.namedCount,size);
+  assert.equal(result.contacts[0].name,"Ibu 1");
+  assert.equal(result.contacts.at(-1).name,"Ibu "+size);
+  assert.equal(result.nameColumnDetected,true);
+ }
+});
+
+test("browser fallback handles CSV and rejects ZIP, without silently losing names",async()=>{
+ const parser=readBrowserUploadModule().readBlashFileLocally;
+ const csv="name,phone\\nSari,081234567890\\nBudi,082345678901\\n";
+ const parsed=await parser({name:"101-200.csv",size:csv.length,text:async()=>csv});
+ assert.equal(parsed.contacts.length,2);
+ assert.equal(parsed.contacts[0].name,"Sari");
+ assert.equal(parsed.contacts[1].name,"Budi");
+ await assert.rejects(parser({name:"semua-file.zip",size:100}),/xlsx|CSV|ZIP/);
+});
+
+test("Blash hides unrelated CRM fetch errors during local Excel recipients",()=>{
+ const editor=fs.readFileSync("components/CampaignEditor.tsx","utf8");
+ assert.match(editor,/readBlashFileLocally\\(file\\)/);
+ assert.match(editor,/recipientSource==="existing"\\?loadError/);
+ assert.match(editor,/browserFallback/);
+});
