@@ -1,6 +1,7 @@
 "use client";
 
 import { parseBlashImportRows } from "./campaigns";
+import { readXlsxRows } from "./xlsx-rows";
 
 /**
  * Browser-only fallback for Android/WhatsApp in-app browsers where a FormData
@@ -43,42 +44,15 @@ export async function readBlashFileLocally(file: File) {
   if (!/\.xlsx$/i.test(file.name))
     throw new Error("Gunakan file Excel .xlsx atau CSV, bukan ZIP atau format lain.");
 
-  // Next.js resolves ExcelJS' browser bundle in client-side builds. Loading
-  // it on demand keeps the main Blash screen lightweight.
-  const { Workbook } = await import("exceljs");
-  const workbook = new Workbook();
-  try {
-    await workbook.xlsx.load(
-      new Uint8Array(await file.arrayBuffer()) as unknown as Parameters<typeof workbook.xlsx.load>[0],
-    );
-  } catch {
-    throw new Error("File Excel tidak dapat dibaca di HP. Unduh ulang file .xlsx lalu pilih filenya.");
-  }
-
-  let issue: Error | null = null;
-  for (const sheet of workbook.worksheets) {
-    if (sheet.rowCount > 5000)
-      throw new Error("Excel terlalu panjang: maksimal 5.000 baris per sheet.");
-    const rows: string[][] = [];
-    for (let r = 1; r <= sheet.rowCount; r++) {
-      const current = sheet.getRow(r);
-      const columns: string[] = [];
-      for (let c = 1; c <= Math.min(current.cellCount, 12); c++) {
-        const value = current.getCell(c);
-        const raw = value.value;
-        columns.push(
-          typeof raw === "number" && Number.isSafeInteger(raw)
-            ? String(raw)
-            : String(value.text || raw || "").trim(),
-        );
-      }
-      rows.push(columns);
-    }
+  // The same XML/ZIP reader is used on the API and on Android browsers.
+  // It accepts valid minimal XLSX files even when ExcelJS rejects styles.
+  let problem: Error | null = null;
+  for (const sheet of await readXlsxRows(new Uint8Array(await file.arrayBuffer()))) {
     try {
-      return { ...parseBlashImportRows(rows), sheetName: sheet.name };
+      return { ...parseBlashImportRows(sheet.rows), sheetName: sheet.sheetName };
     } catch (error) {
-      issue = error instanceof Error ? error : new Error("Tidak ada nomor WhatsApp valid.");
+      problem = error instanceof Error ? error : new Error("Data nomor tidak valid.");
     }
   }
-  throw issue || new Error("Excel tidak berisi nomor WhatsApp yang dapat digunakan.");
+  throw problem || new Error("Excel tidak memiliki sheet berisi nomor WhatsApp.");
 }
