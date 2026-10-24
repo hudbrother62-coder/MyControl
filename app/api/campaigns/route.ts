@@ -1,5 +1,7 @@
 import { authorize, apiError } from "@/lib/server/session";
 import { db, rpc } from "@/lib/server/database";
+import {assertCampaignSender} from "@/lib/server/whatsapp-sessions";
+export const maxDuration=60;
 import { normalizePhone, validateSteps } from "@/lib/campaigns";
 const uuid = (id: unknown) => {
   if (typeof id !== "string" || !/^[a-f0-9-]{36}$/i.test(id))
@@ -119,13 +121,15 @@ export async function POST(req: Request) {
       await rpc("mc_campaign_pause_all");
       return Response.json({ ok: true });
     }
-    if (b.action === "test")
+    if (b.action === "test") {
+      await assertCampaignSender(uuid(b.id));
       return Response.json(
         await rpc("mc_campaign_test", {
           p_id: uuid(b.id),
           p_phone: normalizePhone(b.phone),
         }),
       );
+    }
     if (b.action === "create") {
       const validatedSteps = validateSteps(b.campaign?.steps);
       const campaign = b.campaign;
@@ -150,13 +154,14 @@ export async function POST(req: Request) {
         throw new Error("Sumber persetujuan promosi bersama wajib minimal 12 karakter");
       return Response.json(
         await rpc("mc_save_campaign", {
-          p_campaign: {name:campaign.name,product_id:campaign.product_id,
+          p_campaign: {session_name:campaign.session_name,name:campaign.name,product_id:campaign.product_id,
             steps:validatedSteps,bot_enabled:campaign.bot_enabled,phones,
             import_contacts:imported,excluded_phones:excluded,bulk_consent:bulkConsent,bulk_consent_evidence:bulkEvidence},
         }),
       );
     }
-    if (["START", "SCHEDULE", "PAUSE", "RESUME", "CANCEL"].includes(b.action))
+    if (["START", "SCHEDULE", "PAUSE", "RESUME", "CANCEL"].includes(b.action)) {
+      if(["START","SCHEDULE","RESUME"].includes(b.action))await assertCampaignSender(uuid(b.id));
       return Response.json(
         await rpc("mc_campaign_action", {
           p_id: uuid(b.id),
@@ -164,6 +169,7 @@ export async function POST(req: Request) {
           p_schedule: b.schedule || null,
         }),
       );
+    }
     if (b.action === "optout") {
       const phone = normalizePhone(b.phone);
       await rpc("mc_campaign_optout", { p_phone: phone });

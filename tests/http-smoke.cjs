@@ -30,6 +30,8 @@ const { spawn } = require("node:child_process"),
     assert(ready, "Server not ready: " + logs);
     for (const [path, status] of [
       ["/", 200],
+      ["/settings/whatsapp", 200],
+      ["/api/whatsapp/sessions", 401],
       ["/api/health", 200],
       ["/api/auth/session", 200],
       ["/api/database/products", 401],
@@ -39,6 +41,12 @@ const { spawn } = require("node:child_process"),
       const r = await fetch("http://127.0.0.1:3111" + path);
       assert.equal(r.status, status, path);
       console.log("PASS", path, status);
+    }
+    for (const agent of ["Mozilla/5.0 (Linux; Android 10) Mobile", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"]) {
+      const page = await fetch("http://127.0.0.1:3111/settings/whatsapp", {headers:{"User-Agent":agent}});
+      assert.equal(page.status,200);
+      assert((await page.text()).includes("viewport"));
+      console.log("PASS WhatsApp page HTTP and viewport", agent.includes("Mobile")?"mobile":"desktop");
     }
     const r = await fetch("http://127.0.0.1:3111/api/control/action", {
       method: "POST",

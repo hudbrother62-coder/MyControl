@@ -5,7 +5,7 @@ const next=name=>(w.connections[name]?.main||[]).flat().map(e=>e.node);
 function expression(value, data, env={}) { return vm.runInNewContext('('+value.replace(/^=\{\{/, '').replace(/\}\}\s*$/, '')+')', {$:name=>({first:()=>({json:data[name]})}), $env:env}); }
 test('WAHA session and send URLs trim trailing slashes and whitespace',()=>{
  const data={'03 | Read Web Controls':{settings:{waha_base_url:' https://waha.example/// '}},'03 | Claim Outbound Job':{}};
- assert.equal(expression(nodes.get('03 | Check WAHA Working').parameters.url,data,{WAHA_SESSION:' active-session '}),'https://waha.example/api/sessions/CSNEW2');
+ assert.equal(expression(nodes.get('03 | Check WAHA Working').parameters.url,data,{WAHA_SESSION:' active-session '}),'https://waha.example/api/sessions/CS2');
  assert.equal(expression(nodes.get('03 | WAHA Send Text').parameters.url,data),'https://waha.example/api/sendText');
 });
 test('WAHA text and video expressions produce valid payloads using the verified session',()=>{
@@ -33,8 +33,8 @@ test('official WAHA trigger routes only message and ack outputs, and owns its re
 test('trigger body supports inbound messages and delivery events without request wrapper',()=>{
  const code=nodes.get('01 | Normalize WAHA Event').parameters.jsCode;
  const run=body=>vm.runInNewContext('(function(){'+code+'})()',{$json:body})[0].json;
- const msg=run({session:'CSNEW2',me:{id:'6283186750567@c.us'},event:'message',payload:{id:'m1',from:'628111111111@c.us',body:'halo',fromMe:false}});assert.equal(msg.valid,true);assert.equal(msg.message_text,'halo');assert.equal(msg.is_ack,false);
- const ack=run({session:'CSNEW2',me:{id:'6283186750567@c.us'},event:'message.ack',payload:{id:'m1',ack:3}});assert.equal(ack.is_ack,true);assert.equal(ack.ack,3);assert.equal(ack.ack_provider_id,'m1');
+ const msg=run({session:'CS2',me:{id:'6283186750567@c.us'},event:'message',payload:{id:'m1',from:'628111111111@c.us',body:'halo',fromMe:false}});assert.equal(msg.valid,true);assert.equal(msg.message_text,'halo');assert.equal(msg.is_ack,false);
+ const ack=run({session:'CS2',me:{id:'6283186750567@c.us'},event:'message.ack',payload:{id:'m1',ack:3}});assert.equal(ack.is_ack,true);assert.equal(ack.ack,3);assert.equal(ack.ack_provider_id,'m1');
 });
 
 test('AI commit forwards claim attempt from current decision item',()=>{
@@ -76,7 +76,7 @@ test('poster JPG and PNG route to sendImage with correct media MIME and signed U
  assert.equal(JSON.parse(expression(nodes.get('03 | Campaign Worker Heartbeat').parameters.body,data)).p_image,true);
 });
 test('CS only accepts and sends through the owner-selected WAHA account',()=>{
- const expected='CSNEW2';
+ const expected='CS2';
  const code=nodes.get('01 | Normalize WAHA Event').parameters.jsCode;
  const run=(session,id)=>vm.runInNewContext('(function(){'+code+'})()',{$json:{session,me:{id},event:'message',payload:{id:'msg',from:'628111@c.us',body:'halo'}}})[0].json;
  assert.equal(run('session_01m51sr28e6ytwpjrgyk15aecr','6285167465305@c.us').valid,false);

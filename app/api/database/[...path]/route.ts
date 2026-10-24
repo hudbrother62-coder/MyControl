@@ -1,4 +1,4 @@
-import { authorize, apiError } from "@/lib/server/session";
+import { authorize, authorizeOwner, apiError } from "@/lib/server/session";
 import { dbConfig } from "@/lib/server/database";
 const tables = new Set([
   "products",
@@ -40,15 +40,28 @@ async function proxy(
       if (v) headers[h] = v;
     }
     const query=new URL(req.url).searchParams;
+    const requestBody = ["GET", "HEAD"].includes(req.method) ? undefined : await req.text();
+    if(path[0] === "bot_settings" && req.method !== "GET") {
+      authorizeOwner(req, true);
+      const protectedKey = "prime_store_waha_cutover";
+      if(req.method === "POST") {
+        const parsed=JSON.parse(requestBody || "null");
+        const rows=Array.isArray(parsed)?parsed:[parsed];
+        if(!rows.length || rows.some(row=>!row || typeof row.key!=="string" || row.key===protectedKey)) throw new Error("FORBIDDEN");
+      } else {
+        const key=query.get("key");
+        if(!key?.startsWith("eq.") || key.slice(3)===protectedKey || [...query.keys()].some(k=>!["key","select"].includes(k))) throw new Error("FORBIDDEN");
+        const parsed=requestBody?JSON.parse(requestBody):{};
+        if(parsed.key!==undefined) throw new Error("FORBIDDEN");
+      }
+    }
     if(req.method==="GET") { const limit=Number(query.get("limit")||50); query.set("limit",String(Number.isFinite(limit)?Math.max(1,Math.min(200,limit)):50)); delete headers.range; delete headers["range-unit"]; }
     const r = await fetch(
       url + "/rest/v1/" + path[0] + "?" + query.toString(),
       {
         method: req.method,
         headers,
-        body: ["GET", "HEAD"].includes(req.method)
-          ? undefined
-          : await req.text(),
+        body: requestBody,
         cache: "no-store",
         signal: AbortSignal.timeout(10000),
       },

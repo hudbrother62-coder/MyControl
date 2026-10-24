@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
+import {BlastSender} from "./WhatsAppSessions";
 import {CampaignStep,campaignRequest,normalizePhone,validateSteps,renderPersonalizedMessage} from "@/lib/campaigns";
 import {useCampaignData} from "./useCampaignData";
 import {readBlashFileLocally} from "@/lib/blash-local-import";
@@ -37,6 +38,7 @@ function parsePastedNumbers(raw:string){
  return {contacts,errors,duplicates};
 }
 export default function CampaignEditor({products,onDone,onClose,videoSupported,imageSupported}:{products:any[];onDone:(id:string)=>void;onClose:()=>void;videoSupported?:boolean;imageSupported?:boolean}){
+ const [senderSession,setSenderSession]=useState("");
  const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<RecipientSource>("paste");
  const {data,error:loadError,loading}=useCampaignData("?view=contacts&q="+encodeURIComponent(search)+"&offset="+offset);
  const [name,setName]=useState(""),[product,setProduct]=useState(()=>products.find(p=>p.source_key==="SP001")?.source_key||products[0]?.source_key||""),[selected,setSelected]=useState<string[]>([]);
@@ -247,7 +249,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
    const campaignName=name.trim()||("Promosi "+(products.find(p=>p.source_key===product)?.payload?.product_name||product)).slice(0,120);
-   const draftId=savedDraft||((await campaignRequest({action:"create",campaign:{name:campaignName,product_id:product,phones:selectedPhones,
+   const draftId=savedDraft||((await campaignRequest({action:"create",campaign:{session_name:senderSession,name:campaignName,product_id:product,phones:selectedPhones,
     import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:false}})).id as string);
    setSavedDraft(draftId);
    if(mode==="NOW"){
@@ -262,6 +264,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
   <div className="sectionTitle"><div><h2>Buat Blash</h2>
    <p className="muted">Tempel nomor / impor Excel → isi pesan → kirim. Tidak perlu menu Kontak.</p>
   </div><button className="btn" type="button" onClick={onClose}>Tutup</button></div>
+  <BlastSender onChange={setSenderSession}/>
   <nav className="blashJumpLinks" aria-label="Bagian pengisian Blash">
    <a href="#blash-product">1. Produk</a><a href="#blash-recipients">2. Penerima</a>
    <a href="#blash-message">3. Isi pesan</a><a href="#blash-review">4. Kirim</a>

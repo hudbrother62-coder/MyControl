@@ -58,3 +58,10 @@ export function apiError(e: unknown) {
     },
   );
 }
+
+export function authorizeOwner(req: Request, mutation = false) {
+  authorize(req, mutation);
+  const token = req.headers.get("cookie")!.split(";").map(x=>x.trim()).find(x=>x.startsWith("mc_session="))!.slice(11);
+  const data = JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString());
+  if (data.role !== "OWNER") throw new Error("FORBIDDEN");
+}

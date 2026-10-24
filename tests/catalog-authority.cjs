@@ -19,7 +19,7 @@ test("bot instructions and AI context do not carry catalog backup or historical 
  assert.ok(!sql.includes("Kasir Kilat Rp"));
 });
 
-test("integration distinguishes n8n process status and CSNEW2 worker heartbeat", () => {
+test("integration distinguishes n8n process status and CS2 worker heartbeat", () => {
  const source=fs.readFileSync("lib/server/health.ts","utf8");
  const ui=fs.readFileSync("app/integrations/page.tsx","utf8");
  assert.ok(source.includes('name === "WORKER"'));
@@ -30,8 +30,8 @@ test("integration distinguishes n8n process status and CSNEW2 worker heartbeat",
 
 test("WAHA diagnosis handles missing session, proxy 404, auth, and identity", () => {
  const code=fs.readFileSync("lib/server/waha-probe.ts","utf8");
- for(const name of ["SESSION_NOT_FOUND","WAHA_API_ROUTE_NOT_FOUND","AUTH_REJECTED","IDENTITY_MISMATCH","CSNEW2","api/sessions?all=true"]){
-  if(name==="CSNEW2")continue;
+ for(const name of ["SESSION_NOT_FOUND","WAHA_API_ROUTE_NOT_FOUND","AUTH_REJECTED","IDENTITY_MISMATCH","CS2","api/sessions?all=true"]){
+  if(name==="CS2")continue;
   assert.ok(code.includes(name),name);
  }
  assert.ok(!code.includes('method:"PUT"'));
@@ -73,7 +73,7 @@ test("latest SQL reads active products and canonical FAQ without duplicate cache
   assert.doesNotMatch(sql, /delete from public.mc_contact_memories/i);
 });
 
-test("workflow definitions use CSNEW2 and safe GET check", () => {
+test("workflow definitions use CS2 and safe GET check", () => {
   for (const file of ["workflows/production/01-waha-inbound.json", "workflows/production/02-ai-worker.json", "workflows/production/03-outbound.json", "workflows/release/Kendaliku_MyControl_v3_All_In_One.json"]) {
     const workflow = JSON.parse(fs.readFileSync(file, "utf8"));
     const raw = JSON.stringify(workflow);
@@ -82,7 +82,7 @@ test("workflow definitions use CSNEW2 and safe GET check", () => {
       if (node.name.includes("Check WAHA Working")) {
         assert.equal(node.parameters.method, "GET");
         assert.equal(node.parameters.sendBody, false);
-        assert.match(node.parameters.url, /sessions\/CSNEW2/);
+        assert.match(node.parameters.url, /sessions\/CS2/);
       }
       if (node.name.includes("WAHA Working Only")) assert.match(node.parameters.jsCode, /208770441470075@lid/);
     }

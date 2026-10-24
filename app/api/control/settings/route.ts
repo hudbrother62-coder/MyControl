@@ -1,5 +1,10 @@
 import { authorize, apiError } from "@/lib/server/session";
 import { db, rpc } from "@/lib/server/database";
+function browserControls(config: any) {
+  const settings = { ...config.settings };
+  for (const key of ["waha_session", "waha_sender_id", "waha_sender_lid", "waha_revision", "waha_webhook_url"]) delete settings[key];
+  return { ...config, settings };
+}
 export async function GET(req: Request) {
   try {
     authorize(req);
@@ -16,7 +21,7 @@ export async function GET(req: Request) {
       rpc("mc_queue_attention"),
     ]);
     return Response.json(
-      { ...config, workers, errors, queue, metrics, attention },
+      { ...browserControls(config), workers, errors, queue, metrics, attention },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (e) {
@@ -47,10 +52,10 @@ export async function POST(req: Request) {
       return Response.json({ ok: true });
     }
     return Response.json(
-      await rpc("mc_save_web_controls", {
+      browserControls(await rpc("mc_save_web_controls", {
         p_version: b.version,
         p_settings: b.settings,
-      }),
+      })),
     );
   } catch (e) {
     return apiError(e);

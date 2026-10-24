@@ -47,6 +47,7 @@ export default function Settings() {
         </div>
         <div className="card">
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Kontrol Sistem</h2>
+          <div className="settingRow"><div><b>WhatsApp &amp; Sesi</b><span>Hubungkan nomor, pilih sesi Blash, dan periksa worker.</span></div><Link className="btn primary" href="/settings/whatsapp">Kelola sesi</Link></div>
           <div className="settingRow">
             <div><b>AI, bot, follow-up & pengecualian nomor</b><span>Semua aturan harian dikelola lewat panel web dan dibaca worker n8n.</span></div>
             <Link className="btn primary" href="/automation">Atur sekarang</Link>
