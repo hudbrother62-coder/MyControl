@@ -21,6 +21,7 @@ const rpcNames = new Set([
   "mc_save_campaign",
   "mc_campaign_action",
   "mc_campaign_overview",
+  "mc_campaign_delivery_summary",
 ]);
 test.before(async () => {
   pg = new PGlite();
@@ -32,6 +33,7 @@ test.before(async () => {
     "002_reliability",
     "003_business_sync",
     "005_campaigns",
+    "072_blash_delivery_summary",
   ])
     await pg.exec(
       fs
