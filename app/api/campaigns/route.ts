@@ -23,14 +23,15 @@ export async function GET(req: Request) {
     }
     if (view === "detail") {
       const id = uuid(q.get("id"));
-      const [campaign, recipients, audit, readiness]=await Promise.all([
+      const [campaign, recipients, audit, readiness, delivery]=await Promise.all([
         db('mc_campaigns?id=eq.'+id),
         db('mc_campaign_recipients?campaign_id=eq.'+id+'&order=phone&limit=50&offset='+offset),
         db('mc_campaign_audit?campaign_id=eq.'+id+'&order=created_at.desc&limit=20'),
-        rpc('mc_campaign_readiness',{p_id:id})
+        rpc('mc_campaign_readiness',{p_id:id}),
+        rpc('mc_campaign_delivery_summary',{p_id:id})
       ]);
       const jobs=recipients.length?await db('mc_outbound_jobs?select=id,recipient_id,step_no,status,delivery_status,last_error&recipient_id=in.('+recipients.map((r:any)=>r.id).join(',')+')&order=step_no&limit=100'):[];
-      return Response.json({ campaign: campaign[0], recipients, jobs, audit, readiness });
+      return Response.json({ campaign: campaign[0], recipients, jobs, audit, readiness, delivery });
     }
     if (view === "crm"){
       const stage=q.get('stage');if(stage&&!['NEW','INTERESTED','FOLLOW_UP','PENDING','AWAITING_PAYMENT','WON','LOST'].includes(stage))throw new Error('Tahap tidak valid');
@@ -152,13 +153,20 @@ export async function POST(req: Request) {
       const bulkEvidence=bulkConsent?String(campaign.bulk_consent_evidence||"").trim().slice(0,500):"";
       if(bulkConsent&&bulkEvidence.length<12)
         throw new Error("Sumber persetujuan promosi bersama wajib minimal 12 karakter");
-      return Response.json(
-        await rpc("mc_save_campaign", {
-          p_campaign: {session_name:campaign.session_name,name:campaign.name,product_id:campaign.product_id,
-            steps:validatedSteps,bot_enabled:campaign.bot_enabled,phones,
-            import_contacts:imported,excluded_phones:excluded,bulk_consent:bulkConsent,bulk_consent_evidence:bulkEvidence},
-        }),
-      );
+      const saved = await rpc("mc_save_campaign", {
+        p_campaign: {session_name:campaign.session_name,name:campaign.name,product_id:campaign.product_id,
+          steps:validatedSteps,bot_enabled:campaign.bot_enabled,phones,
+          import_contacts:imported,excluded_phones:excluded,bulk_consent:bulkConsent,bulk_consent_evidence:bulkEvidence},
+      });
+      // Do not claim an Excel batch was saved if any selected recipient went missing.
+      const summary = await rpc("mc_campaign_delivery_summary", {p_id:uuid(saved.id)});
+      const savedCount = Number(summary?.recipient_total ?? 0);
+      if (savedCount !== phones.length)
+        return Response.json({ok:false,id:saved.id,expected_recipients:phones.length,
+          saved_recipients:savedCount,
+          error:"Draft tersimpan tetapi jumlah penerima tidak cocok ("+savedCount+
+            " dari "+phones.length+"). Pengiriman ditahan; periksa draft."},{status:409});
+      return Response.json({...saved,expected_recipients:phones.length,saved_recipients:savedCount});
     }
     if (["START", "SCHEDULE", "PAUSE", "RESUME", "CANCEL"].includes(b.action)) {
       if(["START","SCHEDULE","RESUME"].includes(b.action))await assertCampaignSender(uuid(b.id));
