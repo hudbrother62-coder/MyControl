@@ -14,7 +14,8 @@ test.before(async () => {
     create table public.mc_campaigns (
       id uuid primary key default gen_random_uuid(),
       status text not null, session_name text not null,
-      recipient_count integer not null
+      recipient_count integer not null,
+      updated_at timestamptz default now()
     );
     insert into public.bot_settings(key,value)
     values('prime_store_waha_cutover','{"target_session":"CS2"}'::jsonb);
