@@ -717,7 +717,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         JSON.stringify({ ...s, loading: undefined, error: undefined }, null, 2),
       signOut: async () => {
         await fetch("/api/auth/logout", { method: "POST" });
-        localStorage.removeItem("mycontrol_session");
+        try {
+          window.localStorage.removeItem("mycontrol_session");
+        } catch {
+          // Local storage is optional: server-side logout still succeeds.
+        }
         location.reload();
       },
     }),

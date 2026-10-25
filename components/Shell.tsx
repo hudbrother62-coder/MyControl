@@ -56,7 +56,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    const value = localStorage.getItem("bb-theme") !== "light";
+    // Some Android browsers block Web Storage (private mode or damaged device storage).
+    // Theme preferences must never prevent the workspace from mounting.
+    let savedTheme: string | null = null;
+    try {
+      savedTheme = window.localStorage.getItem("bb-theme");
+    } catch {
+      // Fall back to the default dark theme without blocking the application.
+    }
+    const value = savedTheme !== "light";
     setDark(value);
     document.body.classList.toggle("dark", value);
     document.body.classList.toggle("theme-light", !value);
@@ -99,7 +107,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     setDark(value);
     document.body.classList.toggle("dark", value);
     document.body.classList.toggle("theme-light", !value);
-    localStorage.setItem("bb-theme", value ? "dark" : "light");
+    try {
+      window.localStorage.setItem("bb-theme", value ? "dark" : "light");
+    } catch {
+      // The selected theme remains active for this visit.
+    }
   }
   return (
     <div className="shell">
