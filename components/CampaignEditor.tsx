@@ -29,7 +29,7 @@ function parsePastedNumbers(raw:string){
    seen.add(phone);
    const name=row.replace(match,"").replace(/^[\s,;|:\t-]+|[\s,;|:\t-]+$/g,"").trim().slice(0,100)||("Pelanggan "+phone.slice(-4));
    contacts.push({phone,name,tags:"",consent:false,consent_evidence:""});
-   if(contacts.length>=1000){errors.push("Maksimal 1.000 nomor per Blash; kelebihan nomor dilewati");break}
+   if(contacts.length===1001)errors.push("Daftar melewati batas 1.000. Tidak ada nomor yang dihapus diam-diam; pecah daftar menjadi beberapa Blash.");
   }catch(e){
    if((e as Error).message.includes("Maksimal"))throw e;
    errors.push("Baris "+(index+1)+": "+(e as Error).message);
@@ -42,7 +42,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[recipientSource,setRecipientSource]=useState<RecipientSource>("paste");
  const {data,error:loadError,loading}=useCampaignData("?view=contacts&q="+encodeURIComponent(search)+"&offset="+offset);
  const [name,setName]=useState(""),[product,setProduct]=useState(()=>products.find(p=>p.source_key==="SP001")?.source_key||products[0]?.source_key||""),[selected,setSelected]=useState<string[]>([]);
- const [excluded,setExcluded]=useState<string[]>([]),[imported,setImported]=useState<ImportContact[]>([]),[importNotice,setImportNotice]=useState("");
+ const [excluded,setExcluded]=useState<string[]>([]),[imported,setImported]=useState<ImportContact[]>([]),[importNotice,setImportNotice]=useState(""),[importSkipped,setImportSkipped]=useState(0);
  const [manualRows,setManualRows]=useState<ManualRow[]>(()=>Array.from({length:5},(_,i)=>newManualRow(i)));
  const nextManualId=useRef(5);
  const [manualContacts,setManualContacts]=useState<ImportContact[]>([]);
@@ -90,18 +90,18 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  const displayContact=(phone:string)=>allImported.find(c=>c.phone===phone)?.name||known.find(c=>c.phone===phone)?.name||("+"+phone);
  const edit=(i:number,patch:Partial<CampaignStep>)=>setSteps(xs=>xs.map((s,j)=>i===j?{...s,...patch}:s));
  function toggle(phone:string){
-  setSelected(prev=>prev.includes(phone)?prev.filter(x=>x!==phone):prev.length>=1000?prev:[...prev,phone]);
+  if(!selected.includes(phone)&&selected.length>=1000){setError("Maksimal 1.000 penerima per kampanye. Buat kampanye berikutnya untuk nomor tambahan.");return}
+  setSelected(prev=>prev.includes(phone)?prev.filter(x=>x!==phone):[...prev,phone]);
  }
  function toggleExclude(phone:string){setExcluded(prev=>prev.includes(phone)?prev.filter(x=>x!==phone):[...prev,phone])}
  async function selectAll(){
   try{
-   if(recipientSource!=="existing"){
-    const phones=(recipientSource==="excel"?excelRows:manualVisible).map(x=>x.phone);
-    setSelected(prev=>Array.from(new Set([...prev,...phones])).slice(0,1000));
-   }else{
-    const d=await campaignRequest(undefined,"?view=selection_all&q="+encodeURIComponent(search));
-    setSelected(prev=>Array.from(new Set([...prev,...(d.phones||[])])).slice(0,1000));
-   }
+   const phones=recipientSource!=="existing"?
+    (recipientSource==="excel"?excelRows:manualVisible).map(x=>x.phone):
+    (await campaignRequest(undefined,"?view=selection_all&q="+encodeURIComponent(search))).phones||[];
+   const combined=Array.from(new Set<string>([...selected,...phones]));
+   if(combined.length>1000)throw new Error("Ada "+combined.length+" penerima. Maksimal 1.000 per kampanye; pilihan tidak dipotong.");
+   setSelected(combined);
    setError("");
   }catch(e){setError((e as Error).message)}
  }
@@ -147,7 +147,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
  }
  async function loadExcel(file?:File){
    if(!file)return;
-   setBusy(true);setError("");setImportNotice("");
+   setBusy(true);setError("");setImportNotice("");setImportSkipped(0);
    try{
     if(file.size>4*1024*1024)throw new Error("File Excel/CSV maksimal 4 MB");
     if(!/\.(xlsx|csv)$/i.test(file.name))throw new Error("Pilih file .xlsx atau .csv, bukan ZIP. Ekstrak ZIP dahulu jika diperlukan.");
@@ -178,18 +178,23 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
     const incoming=parsed.contacts as ImportContact[];
     if(!Array.isArray(incoming)||incoming.length===0)
      throw new Error("Tidak ditemukan nomor WhatsApp valid dalam Excel.");
-    setSelected(previous=>Array.from(new Set([
-     ...previous.filter(phone=>!imported.some(contact=>contact.phone===phone)),
+    const combined=Array.from(new Set([
+     ...selected.filter(phone=>!imported.some(contact=>contact.phone===phone)),
      ...incoming.map(contact=>contact.phone),
-    ])).slice(0,1000));
+    ]));
+    if(combined.length>1000)throw new Error(
+      "Total "+combined.length+" nomor dari impor dan pilihan lama melebihi 1.000. Tidak ada nomor dipotong; bagi daftar.");
+    setSelected(combined);
     setImported(incoming);
     setRecipientSource("excel");
-    setImportNotice("✓ "+file.name+": "+incoming.length+" nomor unik berhasil dibaca dan dipilih · "+
-      (parsed.nameColumnDetected?parsed.namedCount+" nama pelanggan terdeteksi otomatis · ":"Kolom nama tidak ada; sapaan cadangan digunakan · ")+
-      parsed.duplicates+" duplikat · "+parsed.emptyRows+" baris kosong · "+
-      parsed.errors.length+" baris dilewati."+
-      (browserFallback?" Dibaca langsung dari file di HP karena koneksi API impor bermasalah.":"")+
-      (parsed.errors.length?" Contoh masalah: "+parsed.errors.slice(0,2).join("; "):""));
+    const inputRows=Number(parsed.inputRows??incoming.length+parsed.duplicates+parsed.emptyRows+parsed.errors.length);
+    setImportSkipped(Math.max(0,inputRows-incoming.length));
+    setImportNotice(file.name+": "+inputRows+" baris diperiksa → "+incoming.length+
+      " nomor unik dipilih · "+parsed.duplicates+" duplikat · "+parsed.emptyRows+
+      " kosong · "+parsed.errors.length+" tidak valid/menolak promosi. "+
+      (parsed.nameColumnDetected?parsed.namedCount+" nama pelanggan terbaca. ":"Nama tidak ada; sapaan cadangan dipakai. ")+
+      (browserFallback?"File dibaca di HP karena API impor terganggu. ":"")+
+      (parsed.errors.length?"Contoh: "+parsed.errors.slice(0,3).join("; "):""));
    }catch(e){setError((e as Error).message||"Impor gagal. Coba unggah ulang file.");}
    finally{setBusy(false)}
   }
@@ -249,8 +254,12 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
    if(included.length>1000)throw new Error("Maksimal 1.000 kontak baru per Blash");
    validateSteps(steps);
    const campaignName=name.trim()||("Promosi "+(products.find(p=>p.source_key===product)?.payload?.product_name||product)).slice(0,120);
-   const draftId=savedDraft||((await campaignRequest({action:"create",campaign:{session_name:senderSession,name:campaignName,product_id:product,phones:selectedPhones,
-    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:false}})).id as string);
+   const result=savedDraft?null:await campaignRequest({action:"create",campaign:{session_name:senderSession,name:campaignName,product_id:product,phones:selectedPhones,
+    import_contacts:included,excluded_phones:excluded.filter(x=>selectedPhones.includes(x)),steps,bot_enabled:false}});
+   const draftId=savedDraft||String(result?.id||"");
+   if(!draftId)throw new Error("Draft tidak memiliki ID penyimpanan; pengiriman ditahan.");
+   if(result&&Number(result.saved_recipients)!==selectedPhones.length)
+    throw new Error("Jumlah penerima tersimpan tidak cocok dengan pilihan. Pengiriman ditahan; periksa draft.");
    setSavedDraft(draftId);
    if(mode==="NOW"){
     try{await campaignRequest({action:"START",id:draftId})}
@@ -289,7 +298,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
        placeholder={"081234567890\n082345678901\n6281234567890\nNama Sekolah, 081234567890"}
        aria-label="Tempel daftar nomor WhatsApp untuk Blash" />
      </label>
-     <p className="muted">Bisa 1.000 nomor sekaligus, satu per baris atau dipisahkan koma. Nama opsional. 08 otomatis diubah menjadi 62.</p>
+     <p className="muted">Bisa hingga 1.000 nomor unik per kampanye (termasuk lebih dari 500), satu per baris atau dipisahkan koma. Nomor ganda dihitung satu penerima. 08 otomatis diubah menjadi 62.</p>
      <label className="fieldLabel"><b>Atau unggah Excel / CSV</b>
        <small className="muted">Mendeteksi kolom name dan phone dari file per 100/per 200, termasuk nama pelanggan. Pilih file .xlsx langsung (jangan ZIP). Jika API impor terganggu di HP, file tetap dibaca otomatis di browser. Nomor 08/8/62 diseragamkan.</small>
       <input className="input" type="file" accept=".xlsx,.csv" disabled={busy}
@@ -298,6 +307,7 @@ export default function CampaignEditor({products,onDone,onClose,videoSupported,i
       <span className="muted">{pastedResult.contacts.length} nomor tempel · {imported.length} nomor Excel · {pastedResult.duplicates} duplikat</span></div>
      {pastedResult.errors.length>0&&<p className="notice" role="alert">{pastedResult.errors.length} baris dilewati: {pastedResult.errors.slice(0,3).join("; ")}</p>}
      {importNotice&&<p className="notice" role="status">{importNotice}</p>}
+     {importSkipped>0&&<p className="notice" role="alert"><b>Periksa sumber Excel:</b> {importSkipped} baris tidak menjadi penerima (duplikat, kosong, tidak valid, atau menolak promosi). Jika 100 baris berisi hanya 90 nomor unik, sistem tidak akan mengklaim mengirim ke 100 orang. Perbaiki daftar jika perlu 100 nomor berbeda.</p>}
     </div>
     <details className="blashExtra">
     <summary>Cara lain: pilih Kontak lama atau ketik satu-satu</summary>
