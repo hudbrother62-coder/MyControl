@@ -25,11 +25,18 @@ function Detail({
     [confirm, setConfirm] = useState("");
   const c = data?.campaign;
   const readiness = data?.readiness;
+  const delivery = data?.delivery;
   const testReady = readiness?.test_status === "SENT";
   const eligibleCount = readiness?.eligible_total ?? 0;
   const alreadyBlasted = readiness?.already_blasted_total ?? 0;
    const aiReplyReady = !c?.bot_enabled || readiness?.ai_auto_reply_ready === true;
   const testPending = ["PENDING","PROCESSING","RETRY"].includes(readiness?.test_status);
+  // Long-running batches must report real queue and delivery status.
+  useEffect(()=>{
+    if(!["RUNNING","SCHEDULED","PAUSED"].includes(c?.status))return;
+    const timer=setInterval(()=>{if(document.visibilityState==="visible")void refresh()},15000);
+    return()=>clearInterval(timer);
+  },[c?.status,refresh]);
   useEffect(()=>{
     if(!testPending)return;
     const timer=setInterval(()=>{if(document.visibilityState==="visible")void refresh()},3000);
@@ -149,6 +156,22 @@ function Detail({
           )}
         </div>
       </div>
+      {delivery && (
+        <div className="campaignMetrics section" role="status" aria-label="Rekap penerima dan pengiriman">
+          <div className="card"><small>Nomor dalam Blash</small><strong>{delivery.recipient_total}</strong></div>
+          <div className="card"><small>Masuk antrean</small><strong>{delivery.queued_total}</strong></div>
+          <div className="card"><small>Diterima gateway</small><strong>{delivery.gateway_accepted}</strong></div>
+          <div className="card"><small>Sampai WhatsApp</small><strong>{delivery.delivered}</strong></div>
+          <div className="card"><small>Menunggu proses</small><strong>{delivery.pending}</strong></div>
+          <div className="card"><small>Gagal</small><strong>{delivery.failed}</strong></div>
+        </div>
+      )}
+      {delivery && (delivery.unknown>0 || delivery.not_queued_total>0 || delivery.excluded_total>0) && (
+        <p className="notice section" role="status">
+          {delivery.not_queued_total} belum masuk antrean · {delivery.excluded_total} dikecualikan · {delivery.unknown} hasil belum pasti.
+          Hasil belum pasti tidak dikirim ulang otomatis untuk menghindari pesan ganda.
+        </p>
+      )}
       {c.status === "DRAFT" && (
         <>
           <div className="blashNextStep section" role="status">
@@ -240,7 +263,7 @@ function Detail({
               : confirm === "SCHEDULE" ? "Jadwalkan Blash untuk " + new Date(schedule + ":00+07:00").toLocaleString("id-ID", {timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"}) + " WIB?"
               : "Mulai Blash untuk " + eligibleCount + " kontak bernomor WhatsApp?"}
           </b>
-          <p>Server akan memeriksa nomor WhatsApp, pengecualian owner, duplikasi, dan kesiapan worker. Pesan yang sudah dikirim tidak dapat ditarik kembali.</p>
+          <p>Server memeriksa izin promosi, pengecualian, dan kesiapan worker. Satu nomor hanya satu kali per kampanye, tetapi bisa ikut kampanye berikutnya. Diterima gateway belum berarti pasti sampai ke ponsel.</p>
           {actionError && <div className="notice errorNotice campaignInlineError" role="alert"><strong>Tidak dapat melanjutkan:</strong> {actionError}</div>}
           <div className="actions">
             <button
@@ -261,7 +284,7 @@ function Detail({
           {error || actionError || notice}
         </div>
       )}
-      <details className="blashExtra section"><summary>Arti status pengiriman</summary><p>Diterima gateway berarti pesan diterima pengirim WhatsApp. Status Sampai dan Dibaca menunggu laporan dari WhatsApp. Pengiriman yang belum pasti tidak diulang otomatis.</p></details>
+      <details className="blashExtra section"><summary>Arti status pengiriman</summary><p>Nomor dalam Blash adalah kontak unik tersimpan. Masuk antrean berarti job dibuat, belum tentu dikirim. Diterima gateway berarti WAHA menerima permintaan. Sampai dan Dibaca hanya berdasarkan tanda terima WhatsApp. Gagal perlu diperiksa di tabel penerima. Hasil belum pasti tidak diulang otomatis.</p></details>
       <div className="tableWrap section campaignDetailTable">
         <table className="table">
           <thead>
